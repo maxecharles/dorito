@@ -1,0 +1,55 @@
+[project]
+name = "dorito"
+version = "0.0.1"
+description = "An extension of amigo for regularised image deconvolution for resolved sources."
+readme = "README.md"
+requires-python = ">=3.11"
+license = {file = "LICENSE.md"}
+authors = [
+  {name = "Max Charles", email = "max.charles@sydney.edu.au"},
+]
+keywords = []
+urls = {repository = "https://github.com/maxecharles/dorito"}
+dependencies = [
+  "amigo",
+  "jax", 
+  "jaxlib", 
+  "zodiax>=0.4.1",
+  "dLux",
+  "astroquery",
+  "pyia",
+  "tqdm",
+  "uncertainties",
+  "interpax",
+  "IPython",
+  "matplotlib",
+]
+
+classifiers=[
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+[build-system]
+requires = [
+    "setuptools>=60",
+    "setuptools-scm>=8.0",
+    "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project.optional-dependencies]
+dev = ["pytest", "black", "ruff", "pre-commit"]
+
+
+[tool.black]
+line-length = 99
+
+[tool.ruff]
+line-length = 99
+select = ["E", "F"]
+ignore = ["E402", "E721", "E731", "E741", "F722"]
+ignore-init-module-imports = true
+
+[tool.ruff.isort]
+combine-as-imports = true
+lines-after-imports = 2
