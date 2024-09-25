@@ -12,9 +12,7 @@ class ResolvedFit(ModelFit):
         """
         Returns the normalised intensity distribution of the source.
         """
-        distribution = (
-            10 ** model.log_distribution[self.get_key(exposure, "log_distribution")]
-        )
+        distribution = 10 ** model.log_distribution[self.get_key(exposure, "log_distribution")]
         return distribution / distribution.sum()
 
     def _eval_weight(self, model, exposure, wavelength: Array) -> Array:
