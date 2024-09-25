@@ -2,6 +2,7 @@ from . import misc
 from . import models
 from . import model_fits
 
+import jax
 from jax import numpy as np, random as jr, Array
 import amigo
 from zodiax.experimental import deserialise
@@ -100,6 +101,31 @@ def build_resolved_model(
     else:
         exposures = [*cal_exposures, *sci_exposures]
         return model, params, exposures
+
+
+def gaussian_prior(source_size=100, scale=5):
+    """
+    A gaussian array to initialise the source distribution.
+    NOTE: this is not logged.
+    """
+    mean = np.array([0, 0])
+    cov = np.array([[1, 0], [0, 1]])  # covariance matrix of the distribution
+    x = scale * np.linspace(-5, 5, source_size)
+    y = scale * np.linspace(-5, 5, source_size)
+    X, Y = np.meshgrid(x, y)
+    pos = np.dstack((X, Y))
+    gaussian = jax.scipy.stats.multivariate_normal.pdf(pos, mean=mean, cov=cov)
+    return gaussian / gaussian.sum()
+
+
+def softcirc_prior(source_size=100, radius=0.65, clip_dist=0.2):
+    """
+    A soft circle array to initialise the source distribution.
+    NOTE: this is not logged.
+    """
+    circ = dlu.soft_circle(dlu.pixel_coords(source_size, 2), radius, clip_dist)
+    circ = np.maximum(circ, 1e-6)
+    return circ / circ.sum()
 
 
 # def initialise_disk(
