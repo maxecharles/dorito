@@ -60,7 +60,7 @@ def build_resolved_model(
         sci_fit = model_fits.DynamicResolvedFit()
 
     if optics is None:
-        amigo.core_models.AMIOptics()
+        optics = amigo.core_models.AMIOptics()
 
     # Setting up calibrator model
     cal_fit = amigo.model_fits.PointFit()
