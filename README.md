@@ -1,2 +1,2 @@
 # dorito
-Differential Optics Reconstructing Images from Telescope Observations
+Differentiable Optics for Reconstructing Images from Telescope Observations
