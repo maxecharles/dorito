@@ -14,9 +14,7 @@ class ResolvedAmigoModel(BaseModeller):
     ramp: None
     read: None
 
-    def __init__(
-        self, params, optics, ramp, detector, read, filters, visibilities=None
-    ):
+    def __init__(self, params, optics, ramp, detector, read, filters, visibilities=None):
         self.filters = filters
         self.optics = optics
         self.detector = detector

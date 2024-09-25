@@ -18,9 +18,7 @@ def calc_parang(file):
 
 
 def plot_diffraction_limit(model, ax=None, OOP=False):
-    effective_wl = np.dot(
-        model.source_spectrum.wavelengths, model.source_spectrum.weights
-    )
+    effective_wl = np.dot(model.source_spectrum.wavelengths, model.source_spectrum.weights)
     diff_lim = dlu.rad2arcsec(effective_wl / model.optics.diameter)
     scale_length = diff_lim
 
