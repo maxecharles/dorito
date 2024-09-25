@@ -18,14 +18,14 @@ def build_resolved_model(
     final_state,
     width: int = None,
     depth: int = None,
-    ramp_model=None,
-    cal_fit=amigo.model_fits.PointFit(),
-    sci_fit=model_fits.DynamicResolvedFit(),
-    optics=amigo.core_models.AMIOptics(),
     source_size: int = 100,  # in oversampled pixels
     log_dist_prior: Array = None,
     spectral_coeffs_prior=np.array([1.0, 0.0]),
     separate_exposures: bool = False,
+    ramp_model=None,
+    cal_fit=None,
+    sci_fit=None,
+    optics=None,
 ):
     """
     Constructing the model.
@@ -47,13 +47,20 @@ def build_resolved_model(
     # Ramp
     if ramp_model is None:
         layers, pooling_layer = amigo.ramp_models.build_pooled_layers(
-            # width=final_state['width'],
-            # depth=final_state['depth'],
             width=width,
             depth=depth,
             pooling="avg",
         )
         ramp_model = amigo.ramp_models.MinimalConv(layers, pooling_layer)
+
+    if cal_fit is None:
+        cal_fit = amigo.model_fits.PointFit()
+
+    if sci_fit is None:
+        sci_fit = model_fits.DynamicResolvedFit()
+
+    if optics is None:
+        amigo.core_models.AMIOptics()
 
     # Setting up calibrator model
     cal_fit = amigo.model_fits.PointFit()
