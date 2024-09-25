@@ -1,10 +1,11 @@
-def clip_io_ramp(exposures: list, n_groups: int):
-    new_exposures = []
-
-    for exp in exposures:
-        up_to = 45 - n_groups
-        for attr in ["slopes", "variance", "ramp", "ramp_variance"]:
-            exp = exp.set(attr, exp.get(attr)[:-up_to, ...])
-        new_exposures.append(exp)
-
-    return new_exposures
+def truncate_files(files, ngroups, top_group):
+    """
+    Truncate the ramp of files to only have ngroups.
+    """
+    # TODO have it read top group from the files
+    up_to = top_group - ngroups
+    
+    for file in files:
+        # files are mutable, so they will change in place
+        for attr in ["RAMP", "SLOPE", "RAMP_ERR", "SLOPE_ERR", "RAMP_SUP", "SLOPE_SUP"]:
+            file[attr].data = file[attr].data[:-up_to, ...]
