@@ -3,11 +3,11 @@ import amigo
 
 
 def star_regulariser(arr, prior=0.948, star_idx=(49, 49)):
-
     arr /= arr.sum()  # normalising
     star_flux = arr[star_idx]  # grabbing star pixel flux
 
     return (star_flux - prior) ** 2
+
 
 # def L1_loss(model):
 #     # only applied to the volcano array
@@ -32,7 +32,7 @@ def TV_loss(arr):
     return diff_x + diff_y
 
 
-def QV_loss(arr):   
+def QV_loss(arr):
     """
     Quadratic variation loss function.
     """
@@ -82,3 +82,13 @@ def regularised_loss_fn(model, exposure, args):
         prior = 0.0
 
     return likelihood + prior
+
+
+def normalise_distribution(model, model_params, args, key):
+    params = model_params.params
+    if "log_distribution" in params.keys():
+        for k, log_dist in params["log_distribution"].items():
+            distribution = 10**log_dist
+            params["log_distribution"][k] = np.log10(distribution / distribution.sum())
+
+    return model_params.set("params", params), key
