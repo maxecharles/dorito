@@ -65,10 +65,10 @@ def get_arcsec_extents(pixel_scale, shape):
     """
     Get the arcsec extents of an image given the pixel scale and shape.
     """
-    return np.array([-0.5, 0.5, -0.5, 0.5]) * pixel_scale * shape[0]
+    return np.array([0.5, -0.5, -0.5, 0.5]) * pixel_scale * shape[0]
 
 
-def plot_io(
+def plot_result(
     ax,
     array,
     roll_angle_degrees: float = 0.0,
@@ -92,7 +92,7 @@ def plot_io(
     ax.set_facecolor(bg_color)  # Set the background colour
     ax.tick_params(direction="out")
     ax.set(
-        xticks=[-0.5, 0, 0.5],
+        xticks=[0.5, 0, -0.5],
         yticks=[-0.5, 0, 0.5],
         **axis_labels,
     )  # Set the axis labels
@@ -119,7 +119,7 @@ def plot_io_with_ephemeris(
 ):
     body = planetmapper.Body("io", date, observer="jwst")
 
-    plot_io(ax, array, roll_angle_degrees, show_diff_lim=True, **kwargs)
+    plot_result(ax, array, roll_angle_degrees, show_diff_lim=True, **kwargs)
 
     body.plot_wireframe_angular(
         ax,
