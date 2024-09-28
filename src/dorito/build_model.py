@@ -162,6 +162,26 @@ def softcirc_prior(source_size=100, radius=0.65, clip_dist=0.2):
     return circ / circ.sum()
 
 
+def TD_prior(source_size, star_flux):
+    """
+    Prior log distribution for a transition disk.
+    """
+
+    shape = (source_size, source_size)
+    star_ind = int(source_size // 2)
+
+    # components
+    star = np.zeros(shape).at[star_ind, star_ind].set(star_flux)
+    field = (
+        np.ones(shape).at[star_ind, star_ind].set(0.0) * (1 - star_flux) / (source_size**2 - 1)
+    )
+
+    # summing components
+    distribution = star + field
+
+    return np.log10(distribution / distribution.sum())
+
+
 # def initialise_disk(
 #     pixel_scale=0.065524085, oversample=4, normalise=True, npix=100, return_psf=True
 # ):
