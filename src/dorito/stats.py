@@ -2,7 +2,19 @@ from jax import numpy as np
 import amigo
 
 
-def star_regulariser(arr, prior=0.948, star_idx=(49, 49)):
+def get_star_idx(arr):
+    i = arr.shape[0] // 2
+    return (i, i)
+
+
+def star_regulariser(arr, prior=0.948, star_idx=None):
+    """
+    Regulariser to penalise a central pixel from straying from a given prior value."
+    """
+    # grabbing index of star
+    if star_idx is None:
+        star_idx = get_star_idx(arr)
+
     arr /= arr.sum()  # normalising
     star_flux = arr[star_idx]  # grabbing star pixel flux
 
