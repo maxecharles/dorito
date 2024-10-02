@@ -44,7 +44,7 @@ def TV_loss(arr):
     return diff_x + diff_y
 
 
-def QV_loss(arr):
+def TSV_loss(arr):
     """
     Quadratic variation loss function.
     """
@@ -63,11 +63,33 @@ def ME_loss(arr, eps=1e-16):
     return -S
 
 
+def interp_star_pixel(arr, star_idx):
+    a, b = star_idx
+
+    # linear interpolation of surrounding pixels
+    interp_value = np.array(
+        [arr[idx] for idx in [(a - 1, b), (a + 1, b), (a, b - 1), (a, b + 1)]]
+    ).mean()
+
+    return np.nan_to_num(arr, nan=interp_value)
+
+
+def TSV_with_star(arr, star_idx=None):
+    # grabbing index of star
+    if star_idx is None:
+        star_idx = get_star_idx(arr)
+
+    # setting star pixel to NaN
+    nanpix_arr = arr.at[star_idx].set(np.nan)
+
+    return TSV_loss(interp_star_pixel(nanpix_arr, star_idx))
+
+
 reg_func_dict = {
     # "L1": L1_loss,
     "L2": L2_loss,
     "TV": TV_loss,
-    "QV": QV_loss,
+    "TSV": TSV_loss,
     "ME": ME_loss,
 }
 
