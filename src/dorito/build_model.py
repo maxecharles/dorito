@@ -125,6 +125,33 @@ def gaussian_prior(source_size=100, scale=5):
     return gaussian / gaussian.sum()
 
 
+def multi_gaussian_prior(source_size=100, scale1=20.0, scale2=0.5, contrast=0.1):
+    """
+    A gaussian array to initialise the source distribution.
+    NOTE: this is not logged.
+    """
+    mean = np.array([0, 0])
+    cov = np.array([[1, 0], [0, 1]])  # covariance matrix of the distribution
+
+    # first gaussian
+    x1 = scale1 * np.linspace(-1, 1, source_size)
+    X1, Y1 = np.meshgrid(x1, x1)
+    pos1 = np.dstack((X1, Y1))
+    gaussian1 = jax.scipy.stats.multivariate_normal.pdf(pos1, mean=mean, cov=cov)
+
+    # second gaussian
+    x2 = scale2 * np.linspace(-1, 1, source_size)
+    X2, Y2 = np.meshgrid(x2, x2)
+    pos2 = np.dstack((X2, Y2))
+    gaussian2 = jax.scipy.stats.multivariate_normal.pdf(pos2, mean=mean, cov=cov)
+
+    # combining
+    gaussian = gaussian1 + contrast * gaussian2
+
+    # normalising
+    return gaussian / gaussian.sum()
+
+
 def softcirc_prior(source_size=100, radius=0.65, clip_dist=0.2):
     """
     A soft circle array to initialise the source distribution.
@@ -133,6 +160,26 @@ def softcirc_prior(source_size=100, radius=0.65, clip_dist=0.2):
     circ = dlu.soft_circle(dlu.pixel_coords(source_size, 2), radius, clip_dist)
     circ = np.maximum(circ, 1e-6)
     return circ / circ.sum()
+
+
+def TD_prior(source_size, star_flux):
+    """
+    Prior log distribution for a transition disk.
+    """
+
+    shape = (source_size, source_size)
+    star_ind = int(source_size // 2)
+
+    # components
+    star = np.zeros(shape).at[star_ind, star_ind].set(star_flux)
+    field = (
+        np.ones(shape).at[star_ind, star_ind].set(0.0) * (1 - star_flux) / (source_size**2 - 1)
+    )
+
+    # summing components
+    distribution = star + field
+
+    return np.log10(distribution / distribution.sum())
 
 
 # def initialise_disk(

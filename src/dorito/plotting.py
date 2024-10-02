@@ -4,6 +4,8 @@ from dLux import utils as dlu
 from matplotlib import pyplot as plt
 import matplotlib as mpl
 import planetmapper
+from PIL import Image
+import os
 
 # for setting NaNs to grey
 seismic = mpl.colormaps["seismic"]
@@ -65,10 +67,10 @@ def get_arcsec_extents(pixel_scale, shape):
     """
     Get the arcsec extents of an image given the pixel scale and shape.
     """
-    return np.array([-0.5, 0.5, -0.5, 0.5]) * pixel_scale * shape[0]
+    return np.array([0.5, -0.5, -0.5, 0.5]) * pixel_scale * shape[0]
 
 
-def plot_io(
+def plot_result(
     ax,
     array,
     roll_angle_degrees: float = 0.0,
@@ -92,7 +94,7 @@ def plot_io(
     ax.set_facecolor(bg_color)  # Set the background colour
     ax.tick_params(direction="out")
     ax.set(
-        xticks=[-0.5, 0, 0.5],
+        xticks=[0.5, 0, -0.5],
         yticks=[-0.5, 0, 0.5],
         **axis_labels,
     )  # Set the axis labels
@@ -119,7 +121,7 @@ def plot_io_with_ephemeris(
 ):
     body = planetmapper.Body("io", date, observer="jwst")
 
-    plot_io(ax, array, roll_angle_degrees, show_diff_lim=True, **kwargs)
+    plot_result(ax, array, roll_angle_degrees, show_diff_lim=True, **kwargs)
 
     body.plot_wireframe_angular(
         ax,
@@ -189,16 +191,40 @@ def get_residuals(
     return residuals
 
 
-def get_loglike_maps(true_model, final_model, exposures, std_min: int = 100):
-    flux = 10 ** true_model.params["fluxes"]["IO_F430M"]
+# def get_loglike_maps(true_model, final_model, exposures, std_min: int = 100):
+#     flux = 10 ** true_model.params["fluxes"]["IO_F430M"]
 
-    maps = []
+#     maps = []
 
-    for exp in exposures:
-        truth = flux * true_model.distribution(exp)
-        recovered = flux * final_model.distribution(exp)
-        std = np.maximum(np.sqrt(truth), std_min)
+#     for exp in exposures:
+#         truth = flux * true_model.distribution(exp)
+#         recovered = flux * final_model.distribution(exp)
+#         std = np.maximum(np.sqrt(truth), std_min)
 
-        maps.append(-jax.scipy.stats.norm.logpdf(truth, recovered, std))
+#         maps.append(-jax.scipy.stats.norm.logpdf(truth, recovered, std))
 
-    return maps
+#     return maps
+
+
+def create_gif_from_dir(png_dir, name, **kwargs):
+    """
+    Create an animated GIF from all PNG files in the specified directory.
+
+    Args:
+        png_dir (str): Path to the directory containing PNG files.
+        name (str): Name of the output GIF file.
+    """
+    # Get a sorted list of all PNG files in the directory
+    png_files = sorted([f for f in os.listdir(png_dir) if f.endswith('.png')])
+
+    # Ensure there are PNG files to process
+    if not png_files:
+        raise ValueError("No PNG files found in the directory!")
+
+    # Load the images into a list
+    images = [Image.open(os.path.join(png_dir, file)) for file in png_files]
+
+    # Save the images as an animated GIF
+    images[0].save(
+        png_dir + name, save_all=True, append_images=images[1:], optimize=False, **kwargs
+        )
