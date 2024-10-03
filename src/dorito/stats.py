@@ -22,6 +22,10 @@ def star_regulariser(arr, prior=0.948, star_idx=None):
 
 
 def regfunc_with_star(reg_func):
+    """
+    Takes in a regularisation function and returns a new regularisation 
+    function that interpolates the star pixel.
+    """
     return lambda arr, star_idx=None: reg_func(interp_star_pixel(arr, star_idx))
 
 
