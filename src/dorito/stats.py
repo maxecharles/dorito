@@ -21,6 +21,10 @@ def star_regulariser(arr, prior=0.948, star_idx=None):
     return (star_flux - prior) ** 2
 
 
+def regfunc_with_star(reg_func):
+    return lambda arr, star_idx=None: reg_func(interp_star_pixel(arr, star_idx))
+
+
 # def L1_loss(model):
 #     # only applied to the volcano array
 #     return np.nansum(model.source.volc_frac * np.abs(10**model.source.log_volcanoes))
@@ -63,15 +67,24 @@ def ME_loss(arr, eps=1e-16):
     return -S
 
 
-def interp_star_pixel(arr, star_idx):
+def interp_star_pixel(arr, star_idx=None):
+    # grabbing index of star
+    if star_idx is None:
+        star_idx = get_star_idx(arr)
+
+    # setting star pixel to NaN
+    nanpix_arr = arr.at[star_idx].set(np.nan)
+
+    # unpacking indices
     a, b = star_idx
 
     # linear interpolation of surrounding pixels
     interp_value = np.array(
-        [arr[idx] for idx in [(a - 1, b), (a + 1, b), (a, b - 1), (a, b + 1)]]
+        [nanpix_arr[idx] for idx in [(a - 1, b), (a + 1, b), (a, b - 1), (a, b + 1)]]
     ).mean()
 
-    return np.nan_to_num(arr, nan=interp_value)
+    # setting NaN value to interpolated value
+    return np.nan_to_num(nanpix_arr, nan=interp_value)
 
 
 def TSV_with_star(arr, star_idx=None):
