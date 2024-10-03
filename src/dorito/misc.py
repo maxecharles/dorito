@@ -1,6 +1,7 @@
 from jax import numpy as np, scipy as jsp, random as jr
 from dLux import utils as dlu
 
+
 def truncate_files(files, ngroups, top_group):
     """
     Truncate the ramp of files to only have ngroups.
@@ -45,7 +46,6 @@ def fwhm_to_sigma(fwhm):
 
 
 def difflim_to_cov(model, exposure, factor):
-
     # getting effective wavelength
     wavels, weights = model.filters[exposure.filter]
     lambd = np.dot(wavels, weights)

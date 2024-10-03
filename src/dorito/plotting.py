@@ -215,7 +215,7 @@ def create_gif_from_dir(png_dir, name, **kwargs):
         name (str): Name of the output GIF file.
     """
     # Get a sorted list of all PNG files in the directory
-    png_files = sorted([f for f in os.listdir(png_dir) if f.endswith('.png')])
+    png_files = sorted([f for f in os.listdir(png_dir) if f.endswith(".png")])
 
     # Ensure there are PNG files to process
     if not png_files:
@@ -227,4 +227,4 @@ def create_gif_from_dir(png_dir, name, **kwargs):
     # Save the images as an animated GIF
     images[0].save(
         png_dir + name, save_all=True, append_images=images[1:], optimize=False, **kwargs
-        )
+    )
