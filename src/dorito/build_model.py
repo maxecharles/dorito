@@ -19,8 +19,10 @@ def build_resolved_model(
     width: int = None,
     depth: int = None,
     source_size: int = 100,  # in oversampled pixels
-    log_dist_prior: Array = None,
-    spectral_coeffs_prior=np.array([1.0, 0.0]),
+    extra_params: list = ["log_distribution", "spectral_coeffs"],
+    priors: dict = {},
+    # log_dist_prior: Array = None,
+    # spectral_coeffs_prior=np.array([1.0, 0.0]),
     separate_exposures: bool = False,
     ramp_model=None,
     cal_fit=None,
@@ -72,18 +74,24 @@ def build_resolved_model(
     sci_exposures = [amigo.core_models.Exposure(file, sci_fit) for file in sci_files]
     sci_params = amigo.files.initialise_params(sci_exposures, optics)
 
-    # Setting priors for log distribution and spectral coefficients
-    log_distributions = {}
-    spectral_coeffs = {}
-    for exp in sci_exposures:
-        dist_key = exp.get_key("log_distribution")
-        log_distributions[dist_key] = log_dist_prior
+    # # Setting priors for log distribution and spectral coefficients
+    # log_distributions = {}
+    # spectral_coeffs = {}
+    # for exp in sci_exposures:
+    #     dist_key = exp.get_key("log_distribution")
+    #     log_distributions[dist_key] = log_dist_prior
 
-        spec_key = exp.get_key("spectral_coeffs")
-        spectral_coeffs[spec_key] = spectral_coeffs_prior
+    #     spec_key = exp.get_key("spectral_coeffs")
+    #     spectral_coeffs[spec_key] = spectral_coeffs_prior
 
-    sci_params["log_distribution"] = log_distributions
-    sci_params["spectral_coeffs"] = spectral_coeffs
+    # sci_params["log_distribution"] = log_distributions
+    # sci_params["spectral_coeffs"] = spectral_coeffs
+
+    for param in extra_params:
+        extra_param_dict = {}
+        for exp in sci_exposures:
+            extra_param_dict[exp.get_key(param)] = priors[param]
+        sci_params[param] = extra_param_dict
 
     # combining calibrator and science
     params = misc.combine_param_dicts(cal_params, sci_params)
