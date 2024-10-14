@@ -76,7 +76,7 @@ class ResolvedFit(ModelFit):
 
     def __call__(self, model, exposure):
         psf = self.model_psf(model, exposure)
-        image = psf.convolve(self.get_distribution(model, exposure))
+        image = psf.convolve(self.get_distribution(model, exposure), method="fft")
         image = self.model_detector(image, model, exposure)
         ramp = self.model_ramp(image, model, exposure)
         return self.model_read(ramp, model, exposure)
