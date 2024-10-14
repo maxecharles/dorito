@@ -111,14 +111,8 @@ reg_func_dict = {
 }
 
 
-def regularised_loss_fn(model, exposure, args):
-    # this is per exposure
-
-    # regular likelihood term
-    likelihood = amigo.stats.reg_loss_fn(model, exposure, args)
-
-    # grabbing and exponentiating log distributions
-    if not exposure.calibrator:
+def apply_regularisers(model, exposure, args):
+        
         distribution = 10 ** model.params["log_distribution"][exposure.get_key("log_distribution")]
 
         # creating a list of regularisation functions and regularisation hyperparameters
@@ -129,10 +123,39 @@ def regularised_loss_fn(model, exposure, args):
         priors = [coeff * fn(distribution) for coeff, fn in zip(coeff_list, fn_list)]
         prior = np.array(priors).sum()  # summing the different regularisers
 
+        return prior
+
+
+
+def regularised_loss_fn(model, exposure, args):
+    # this is per exposure
+
+    # regular likelihood term
+    likelihood = amigo.stats.reg_loss_fn(model, exposure, args)
+
+    # grabbing and exponentiating log distributions
+    if not exposure.calibrator:
+        prior = apply_regularisers(model, exposure, args)
+
     else:
         prior = 0.0
 
     return likelihood + prior
+
+
+def prior_data_loss(model, exposure, args):
+
+    # regular likelihood term
+    likelihood = amigo.stats.reg_loss_fn(model, exposure, args)
+
+    # grabbing and exponentiating log distributions
+    if not exposure.calibrator:
+        prior = apply_regularisers(model, exposure, args)
+
+    else:
+        prior = 0.0
+
+    return likelihood, prior
 
 
 def normalise_distribution(model, model_params, args, key):
