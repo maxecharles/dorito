@@ -23,7 +23,7 @@ def star_regulariser(arr, prior=0.948, star_idx=None):
 
 def regfunc_with_star(reg_func):
     """
-    Takes in a regularisation function and returns a new regularisation 
+    Takes in a regularisation function and returns a new regularisation
     function that interpolates the star pixel.
     """
     return lambda arr, star_idx=None: reg_func(interp_star_pixel(arr, star_idx))
@@ -34,10 +34,18 @@ def regfunc_with_star(reg_func):
 #     return np.nansum(model.source.volc_frac * np.abs(10**model.source.log_volcanoes))
 
 
+def L1_loss(arr):
+    """
+    L1 Norm loss function.
+    """
+    return np.nansum(np.abs(arr))
+
+
 def L2_loss(arr):
     """
     L2 Norm loss function.
     """
+    # TODO - check if this is correct
     return np.nansum((arr - arr.mean()) ** 2)
 
 
@@ -69,6 +77,37 @@ def ME_loss(arr, eps=1e-16):
     P = arr / np.nansum(arr)
     S = np.nansum(-P * np.log(P + eps))
     return -S
+
+
+def L1(model, exposure, args):
+    flux = 10 ** model.fluxes[exposure.get_key("fluxes")]
+    distribution = model.get_distribution(exposure)
+    source = flux * distribution
+
+    return L1_loss(source)
+
+
+def L1_on_wavelets(model, exposure, args):
+    flux = 10 ** model.fluxes[exposure.get_key("fluxes")]
+    wavelets = model.wavelets[exposure.get_key("wavelets")]
+
+    return L1_loss(flux * wavelets)
+
+
+def L2(model, exposure, args):
+    return L2_loss(model.get_distribution(exposure))
+
+
+def TV(model, exposure, args):
+    return TV_loss(model.get_distribution(exposure))
+
+
+def TSV(model, exposure, args):
+    return TSV_loss(model.get_distribution(exposure))
+
+
+def ME(model, exposure, args):
+    return ME_loss(model.get_distribution(exposure))
 
 
 def interp_star_pixel(arr, star_idx=None):
@@ -112,19 +151,15 @@ reg_func_dict = {
 
 
 def apply_regularisers(model, exposure, args):
-        
-        distribution = 10 ** model.params["log_distribution"][exposure.get_key("log_distribution")]
+    # creating a list of regularisation functions and regularisation hyperparameters
+    fn_list = [args["reg_func_dict"][reg] for reg in args["reg_dict"].keys()]
+    coeff_list = list(args["reg_dict"].values())
 
-        # creating a list of regularisation functions and regularisation hyperparameters
-        fn_list = [args["reg_func_dict"][reg] for reg in args["reg_dict"].keys()]
-        coeff_list = list(args["reg_dict"].values())
+    # evaluating the regularisation term with each for each regulariser
+    priors = [coeff * fn(model, exposure, args) for coeff, fn in zip(coeff_list, fn_list)]
+    prior = np.array(priors).sum()  # summing the different regularisers
 
-        # evaluating the regularisation term with each for each regulariser
-        priors = [coeff * fn(distribution) for coeff, fn in zip(coeff_list, fn_list)]
-        prior = np.array(priors).sum()  # summing the different regularisers
-
-        return prior
-
+    return prior
 
 
 def regularised_loss_fn(model, exposure, args):
@@ -144,7 +179,6 @@ def regularised_loss_fn(model, exposure, args):
 
 
 def prior_data_loss(model, exposure, args):
-
     # regular likelihood term
     likelihood = amigo.stats.reg_loss_fn(model, exposure, args)
 
