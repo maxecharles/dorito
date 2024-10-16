@@ -10,6 +10,7 @@ import equinox as eqx
 import dLux as dl
 import dLux.utils as dlu
 from astropy import units as u
+import jaxwt
 
 
 def build_resolved_model(
@@ -18,7 +19,7 @@ def build_resolved_model(
     final_state,
     width: int = None,
     depth: int = None,
-    source_size: int = 100,  # in oversampled pixels
+    # source_size: int = 100,  # in oversampled pixels
     extra_params: list = ["log_distribution", "spectral_coeffs"],
     priors: dict = {},
     # log_dist_prior: Array = None,
@@ -33,11 +34,11 @@ def build_resolved_model(
     Constructing the model.
     """
 
-    if log_dist_prior is not None:
-        if log_dist_prior.shape[0] is not source_size:
-            raise ValueError("log_dist_prior must have the same shape as source_size")
-    else:
-        log_dist_prior = np.log10(np.ones((source_size, source_size)) / source_size**2)
+    # if log_dist_prior is not None:
+    #     if log_dist_prior.shape[0] is not source_size:
+    #         raise ValueError("log_dist_prior must have the same shape as source_size")
+    # else:
+    #     log_dist_prior = np.log10(np.ones((source_size, source_size)) / source_size**2)
 
     if ramp_model is None:
         if width is None or depth is None:
@@ -188,6 +189,34 @@ def TD_prior(source_size, star_flux):
     distribution = star + field
 
     return np.log10(distribution / distribution.sum())
+
+
+def wavelet_prior(source_size, level=None, wavelet="db2"):
+    """
+    Creates a set of wavelet coefficients for a given source
+    size and level, corresponding to a normalised uniform array.
+
+    Parameters
+    ----------
+    source_size : int
+        The size of the image after an inverse wavelet transformation.
+    level : int | None
+        The number of wavelet levels to use. If None, the maximum
+        possible level is used.
+    wavelet : str
+        The wavelet basis to use, default is 'db2'.
+
+    Returns
+    -------
+    coeffs : tuple
+        A tuple of wavelet coefficients, with the first element
+        corresponding to the approximation coefficients.
+    """
+
+    ones = np.ones((source_size, source_size))
+    ones = ones / ones.sum()
+
+    return jaxwt.conv_fwt_2d.wavedec2(ones, wavelet, level=level)
 
 
 # def initialise_disk(
