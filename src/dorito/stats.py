@@ -7,10 +7,14 @@ def get_star_idx(arr):
     return (i, i)
 
 
-def star_regulariser(arr, prior=0.948, star_idx=None):
+def star_reg_on_array(arr, args):
     """
     Regulariser to penalise a central pixel from straying from a given prior value."
     """
+
+    prior = args["prior"]
+    star_idx = args["star_idx"]
+
     # grabbing index of star
     if star_idx is None:
         star_idx = get_star_idx(arr)
@@ -21,12 +25,41 @@ def star_regulariser(arr, prior=0.948, star_idx=None):
     return (star_flux - prior) ** 2
 
 
+def star_reg(model, exposure, args={"prior": 0.948, "star_idx": None}):
+    """
+    Regulariser to penalise a central pixel from straying from a given prior value."
+    """
+    # grabbing index of star
+    arr = model.get_distribution(exposure)
+    return star_reg_on_array(arr, args)
+
+
 def regfunc_with_star(reg_func):
     """
     Takes in a regularisation function and returns a new regularisation
     function that interpolates the star pixel.
     """
     return lambda arr, star_idx=None: reg_func(interp_star_pixel(arr, star_idx))
+
+
+def interp_star_pixel(arr, star_idx=None):
+    # grabbing index of star
+    if star_idx is None:
+        star_idx = get_star_idx(arr)
+
+    # setting star pixel to NaN
+    nanpix_arr = arr.at[star_idx].set(np.nan)
+
+    # unpacking indices
+    a, b = star_idx
+
+    # linear interpolation of surrounding pixels
+    interp_value = np.array(
+        [nanpix_arr[idx] for idx in [(a - 1, b), (a + 1, b), (a, b - 1), (a, b + 1)]]
+    ).mean()
+
+    # setting NaN value to interpolated value
+    return np.nan_to_num(nanpix_arr, nan=interp_value)
 
 
 # def L1_loss(model):
@@ -56,8 +89,8 @@ def TV_loss(arr):
     pad_arr = np.pad(arr, 2)  # padding
     diff_y = np.abs(pad_arr[1:, :] - pad_arr[:-1, :]).sum()
     diff_x = np.abs(pad_arr[:, 1:] - pad_arr[:, :-1]).sum()
-    # return np.hypot(diff_x, diff_y)
-    return diff_x + diff_y
+    return np.hypot(diff_x, diff_y)
+    # return diff_x + diff_y
 
 
 def TSV_loss(arr):
@@ -108,26 +141,6 @@ def TSV(model, exposure, args):
 
 def ME(model, exposure, args):
     return ME_loss(model.get_distribution(exposure))
-
-
-def interp_star_pixel(arr, star_idx=None):
-    # grabbing index of star
-    if star_idx is None:
-        star_idx = get_star_idx(arr)
-
-    # setting star pixel to NaN
-    nanpix_arr = arr.at[star_idx].set(np.nan)
-
-    # unpacking indices
-    a, b = star_idx
-
-    # linear interpolation of surrounding pixels
-    interp_value = np.array(
-        [nanpix_arr[idx] for idx in [(a - 1, b), (a + 1, b), (a, b - 1), (a, b + 1)]]
-    ).mean()
-
-    # setting NaN value to interpolated value
-    return np.nan_to_num(nanpix_arr, nan=interp_value)
 
 
 def TSV_with_star(arr, star_idx=None):
@@ -198,5 +211,31 @@ def normalise_distribution(model, model_params, args, key):
         for k, log_dist in params["log_distribution"].items():
             distribution = 10**log_dist
             params["log_distribution"][k] = np.log10(distribution / distribution.sum())
+
+    return model_params.set("params", params), key
+
+
+def normalise_wavelets(model, model_params, args, key):
+    params = model_params.params
+
+    if "wavelets" not in params.keys():
+        return model_params, key
+    
+    # this is only to use methods! Does not update outside this function
+    model = model.set("params", params)
+        
+    for k in params["wavelets"].keys():
+
+        # reconstructing, normalising
+        distribution = model._get_distribution_from_key(k)
+        distribution = np.clip(distribution, 0.)
+        distribution = distribution / distribution.sum()
+
+        # converting to wavelet coefficients
+        norm_wavelets = model.wavelet_transform(distribution)
+        norm_coeffs = model.flatten_wavelets(norm_wavelets)
+    
+        # re-assigning
+        params["wavelets"][k] = norm_coeffs
 
     return model_params.set("params", params), key

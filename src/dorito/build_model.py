@@ -4,41 +4,37 @@ from . import model_fits
 
 import jax
 from jax import numpy as np, random as jr, Array
-import amigo
 from zodiax.experimental import deserialise
 import equinox as eqx
 import dLux as dl
 import dLux.utils as dlu
+
 from astropy import units as u
+
+import amigo
 import jaxwt
+import jaxshearlab.pyShearLab2D as jsl
 
 
 def build_resolved_model(
     cal_files,
     sci_files,
     final_state,
-    width: int = None,
-    depth: int = None,
-    # source_size: int = 100,  # in oversampled pixels
     extra_params: list = ["log_distribution", "spectral_coeffs"],
     priors: dict = {},
-    # log_dist_prior: Array = None,
-    # spectral_coeffs_prior=np.array([1.0, 0.0]),
+    width: int = None,
+    depth: int = None,
     separate_exposures: bool = False,
     ramp_model=None,
+    modeller=None,
     cal_fit=None,
     sci_fit=None,
     optics=None,
+    **model_kwargs,
 ):
     """
     Constructing the model.
     """
-
-    # if log_dist_prior is not None:
-    #     if log_dist_prior.shape[0] is not source_size:
-    #         raise ValueError("log_dist_prior must have the same shape as source_size")
-    # else:
-    #     log_dist_prior = np.log10(np.ones((source_size, source_size)) / source_size**2)
 
     if ramp_model is None:
         if width is None or depth is None:
@@ -65,6 +61,9 @@ def build_resolved_model(
     if optics is None:
         optics = amigo.core_models.AMIOptics()
 
+    if modeller is None:
+        modeller = models.ResolvedAmigoModel
+
     # Setting up calibrator model
     cal_fit = amigo.model_fits.PointFit()
     cal_exposures = [amigo.core_models.Exposure(file, cal_fit) for file in cal_files]
@@ -75,20 +74,15 @@ def build_resolved_model(
     sci_exposures = [amigo.core_models.Exposure(file, sci_fit) for file in sci_files]
     sci_params = amigo.files.initialise_params(sci_exposures, optics)
 
-    # # Setting priors for log distribution and spectral coefficients
-    # log_distributions = {}
-    # spectral_coeffs = {}
-    # for exp in sci_exposures:
-    #     dist_key = exp.get_key("log_distribution")
-    #     log_distributions[dist_key] = log_dist_prior
-
-    #     spec_key = exp.get_key("spectral_coeffs")
-    #     spectral_coeffs[spec_key] = spectral_coeffs_prior
-
-    # sci_params["log_distribution"] = log_distributions
-    # sci_params["spectral_coeffs"] = spectral_coeffs
-
+    # populating params with priors of extra parameters
     for param in extra_params:
+        # skip wavelets as this is handled in the
+        # WaveletModel class __init__ method
+        if param == "wavelets":
+            model_kwargs["wavelets"] = priors[param]
+            model_kwargs["exposures"] = [*cal_exposures, *sci_exposures]
+            continue
+
         extra_param_dict = {}
         for exp in sci_exposures:
             extra_param_dict[exp.get_key(param)] = priors[param]
@@ -102,18 +96,23 @@ def build_resolved_model(
     for filt in list(set([exp.filter for exp in [*sci_exposures, *cal_exposures]])):
         filters[filt] = amigo.misc.calc_throughput(filt, nwavels=9)
 
-    model = models.ResolvedAmigoModel(
+    # initialising model
+    model = modeller(
         params,
         optics=optics,
         ramp=ramp_model,
         detector=amigo.core_models.LinearDetectorModel(),
         read=amigo.read_models.ReadModel(),
         filters=filters,
+        **model_kwargs,
     )
     model = amigo.misc.populate_from_state(model, final_state)
 
+    # returning calibrator and science exposures separately
     if separate_exposures:
         return model, params, cal_exposures, sci_exposures
+
+    # otherwise, return all exposures together
     else:
         exposures = [*cal_exposures, *sci_exposures]
         return model, params, exposures
@@ -217,6 +216,50 @@ def wavelet_prior(source_size, level=None, wavelet="db2"):
     ones = ones / ones.sum()
 
     return jaxwt.conv_fwt_2d.wavedec2(ones, wavelet, level=level)
+
+
+def shearlet_prior(source_size=None, nScales=2, shearletSystem=None):
+    """
+    Creates a set of shearlet coefficients for a given source
+    corresponding to a normalised uniform array.
+
+    Parameters
+    ----------
+    source_size : int
+        The size of the image after an inverse wavelet transformation.
+    nScales : int
+        The number of scales to use.
+    shearletSystem : None
+        A pre-defined shearlet system. If None, a new system
+        is created.
+
+    Returns
+    -------
+    shearlets : Array
+        The shearlet coefficients.
+    shearletSystem : jsl.pyShearLab2D.SLgetShearletSystem2D
+        The shearlet system used to calculate the coefficients
+    """
+
+    if shearletSystem is None:
+        if source_size is None:
+            raise ValueError("Source size must be provided if no shearlet system is provided.")
+
+        shearletSystem = jsl.SLgetShearletSystem2D(
+            useGPU=0,
+            rows=source_size,
+            cols=source_size,
+            nScales=nScales,
+        )
+
+    # creating a uniform distribution
+    ones = np.ones((source_size, source_size))
+    ones = ones / ones.sum()
+
+    # transofrming to shearlet coefficients
+    shearlets = jsl.SLsheardec2D(ones, shearletSystem)
+
+    return shearlets, shearletSystem
 
 
 # def initialise_disk(
