@@ -99,3 +99,28 @@ class DynamicResolvedFit(ResolvedFit):
                 return "_".join([exposure.key, exposure.filter])
 
         return super().get_key(exposure, param)
+
+
+class WaveletFit(ResolvedFit):
+
+    def get_key(self, exposure, param):
+        match param:
+            case "wavelets":
+                return exposure.filter
+
+        return super().get_key(exposure, param)
+
+    def map_param(self, exposure, param):
+        match param:
+            case "wavelets":
+                return f"{param}.{exposure.get_key(param)}"
+
+        return super().map_param(exposure, param)
+    
+    def __call__(self, model, exposure):
+        psf = self.model_psf(model, exposure)
+        image = psf.convolve(model.get_distribution(exposure), method="fft")
+        image = self.model_detector(image, model, exposure)
+        ramp = self.model_ramp(image, model, exposure)
+        return self.model_read(ramp, model, exposure)
+    
