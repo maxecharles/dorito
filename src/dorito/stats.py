@@ -220,21 +220,20 @@ def normalise_wavelets(model, model_params, args, key):
 
     if "wavelets" not in params.keys():
         return model_params, key
-    
+
     # this is only to use methods! Does not update outside this function
     model = model.set("params", params)
-        
-    for k in params["wavelets"].keys():
 
+    for k in params["wavelets"].keys():
         # reconstructing, normalising
         distribution = model._get_distribution_from_key(k)
-        distribution = np.clip(distribution, 0.)
+        distribution = np.clip(distribution, 0.0)
         distribution = distribution / distribution.sum()
 
         # converting to wavelet coefficients
         norm_wavelets = model.wavelet_transform(distribution)
         norm_coeffs = model.flatten_wavelets(norm_wavelets)
-    
+
         # re-assigning
         params["wavelets"][k] = norm_coeffs
 

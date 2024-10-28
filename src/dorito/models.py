@@ -71,24 +71,22 @@ class ResolvedAmigoModel(BaseModeller):
 
 
 class BaseWaveletModel(ResolvedAmigoModel):
-
     shapes: list
     sizes: list
     starts: list
     tree_def: None
 
     def __init__(
-            self,
-            params,
-            optics,
-            ramp,
-            detector,
-            read,
-            filters,
-            exposures=None,
-            wavelets=None,
-            ):
-
+        self,
+        params,
+        optics,
+        ramp,
+        detector,
+        read,
+        filters,
+        exposures=None,
+        wavelets=None,
+    ):
         if exposures is None:
             raise ValueError("Exposures must be provided.")
 
@@ -117,14 +115,11 @@ class BaseWaveletModel(ResolvedAmigoModel):
             filters=filters,
         )
 
-
     def flatten_wavelets(self, wavelets):
         waveleaves, _ = jtu.flatten(wavelets)
         return np.concatenate([val.flatten() for val in waveleaves])
 
-
     def _wavelet_coeffs_from_key(self, exp_key):
-
         wavalues = self.params["wavelets"][exp_key]
 
         waveleaves = [
@@ -147,34 +142,32 @@ class BaseWaveletModel(ResolvedAmigoModel):
         Returns the normalised intensity distribution of the source.
         """
         return self._get_distribution_from_key(exposure.get_key("wavelets"))
-    
+
     @abstractmethod
     def wavelet_transform(self, exposure) -> Array:
         """
         Returns the wavelet coefficients of for a given distribution.
         """
-   
+
 
 class WaveletModel(BaseWaveletModel):
-
     wavelet: str = "db2"
     level: int = None
-    
-    def __init__(
-            self,
-            params,
-            optics,
-            ramp,
-            detector,
-            read,
-            filters,
-            exposures=None,
-            wavelets=None,
-            source_size=98,
-            level=None,
-            wavelet="db2",
-            ):
 
+    def __init__(
+        self,
+        params,
+        optics,
+        ramp,
+        detector,
+        read,
+        filters,
+        exposures=None,
+        wavelets=None,
+        source_size=98,
+        level=None,
+        wavelet="db2",
+    ):
         if wavelets is None:
             if source_size is None or level is None:
                 raise ValueError("Source size and level must be provided if wavelets are not.")
@@ -201,7 +194,7 @@ class WaveletModel(BaseWaveletModel):
         wavelet_coeffs = self._wavelet_coeffs_from_key(exp_key)
         distribution = jaxwt.waverec2(wavelet_coeffs, self.wavelet)[0]
         return distribution
-    
+
     def wavelet_transform(self, array) -> Array:
         # converting to wavelet coefficients
         return jaxwt.conv_fwt_2d.wavedec2(
@@ -212,7 +205,6 @@ class WaveletModel(BaseWaveletModel):
 
 
 class ShearletModel(BaseWaveletModel):
-
     shearletSystem: None
 
     def __init__(
@@ -228,21 +220,20 @@ class ShearletModel(BaseWaveletModel):
         wavelets=None,
         shearletSystem=None,
         nScales=2,
-        ):
-
+    ):
         if wavelets is None:
             if shearletSystem is not None:
                 wavelets, _ = build_model.shearlet_prior(
                     source_size,
                     shearletSystem=shearletSystem,
                     nScales=nScales,
-                    )
+                )
 
             elif shearletSystem is None:
                 wavelets, shearletSystem = build_model.shearlet_prior(
                     source_size,
                     nScales=nScales,
-                    )
+                )
 
         self.shearletSystem = shearletSystem
 
@@ -256,7 +247,6 @@ class ShearletModel(BaseWaveletModel):
             exposures=exposures,
             wavelets=wavelets,
         )
-        
 
     def _get_distribution_from_key(self, exp_key) -> Array:
         """
@@ -264,7 +254,6 @@ class ShearletModel(BaseWaveletModel):
         """
         wavelet_coeffs = self._wavelet_coeffs_from_key(exp_key)
         return jsl.SLshearrec2D(wavelet_coeffs, self.shearletSystem)
-    
+
     def wavelet_transform(self, array) -> Array:
         return jsl.SLsheardec2D(array, self.shearletSystem)
-
