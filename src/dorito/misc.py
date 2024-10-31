@@ -2,15 +2,17 @@ from jax import numpy as np, scipy as jsp, random as jr
 from dLux import utils as dlu
 
 
-def truncate_files(files, ngroups, top_group):
+def truncate_files(files, ngroups):
     """
     Truncate the ramp of files to only have ngroups.
     """
-    # TODO have it read top group from the files
     # TODO do one_on_fs here
-    up_to = top_group - ngroups
 
     for file in files:
+        
+        top_group = file["RAMP"].data.shape[0]
+        up_to = top_group - ngroups
+
         # files are mutable, so they will change in place
         for attr in ["RAMP", "SLOPE", "RAMP_ERR", "SLOPE_ERR", "RAMP_SUP", "SLOPE_SUP"]:
             file[attr].data = file[attr].data[:-up_to, ...]
