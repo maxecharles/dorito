@@ -30,6 +30,7 @@ def build_resolved_model(
     cal_fit=None,
     sci_fit=None,
     optics=None,
+    Teff_cache="files/Teff_cache/",
     **model_kwargs,
 ):
     """
@@ -68,7 +69,7 @@ def build_resolved_model(
     cal_fit = amigo.model_fits.PointFit()
     cal_exposures = [amigo.core_models.Exposure(file, cal_fit) for file in cal_files]
     cal_params = amigo.files.initialise_params(cal_exposures, optics)
-    cal_params["Teffs"] = amigo.search_Teffs.get_Teffs(cal_files)
+    cal_params["Teffs"] = amigo.search_Teffs.get_Teffs(cal_files, Teff_cache)
 
     # Setting up science model
     sci_exposures = [amigo.core_models.Exposure(file, sci_fit) for file in sci_files]
