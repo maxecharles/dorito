@@ -39,10 +39,10 @@ def regfunc_with_star(reg_func):
     Takes in a regularisation function and returns a new regularisation
     function that interpolates the star pixel.
     """
-    return lambda arr, star_idx=None: reg_func(interp_star_pixel(arr, star_idx))
+    return lambda model, exposure, args: reg_func(interp_star_pixel(model, exposure, args))
 
 
-def interp_star_pixel(arr, star_idx=None):
+def interp_star_pixel_on_array(arr, star_idx=None):
     # grabbing index of star
     if star_idx is None:
         star_idx = get_star_idx(arr)
@@ -62,9 +62,8 @@ def interp_star_pixel(arr, star_idx=None):
     return np.nan_to_num(nanpix_arr, nan=interp_value)
 
 
-# def L1_loss(model):
-#     # only applied to the volcano array
-#     return np.nansum(model.source.volc_frac * np.abs(10**model.source.log_volcanoes))
+def interp_star_pixel(model, exposure, args):
+    return interp_star_pixel_on_array(model.get_distribution(exposure), star_idx=args["star_idx"])
 
 
 def L1_loss(arr):
@@ -79,7 +78,7 @@ def L2_loss(arr):
     L2 Norm loss function.
     """
     # TODO - check if this is correct
-    return np.nansum((arr - arr.mean()) ** 2)
+    return np.nansum(arr**2)
 
 
 def TV_loss(arr):
@@ -128,7 +127,11 @@ def L1_on_wavelets(model, exposure, args):
 
 
 def L2(model, exposure, args):
-    return L2_loss(model.get_distribution(exposure))
+    flux = 10 ** model.fluxes[exposure.get_key("fluxes")]
+    distribution = model.get_distribution(exposure)
+    source = flux * distribution
+
+    return L2_loss(source)
 
 
 def TV(model, exposure, args):
@@ -155,11 +158,11 @@ def TSV_with_star(arr, star_idx=None):
 
 
 reg_func_dict = {
-    # "L1": L1_loss,
-    "L2": L2_loss,
-    "TV": TV_loss,
-    "TSV": TSV_loss,
-    "ME": ME_loss,
+    "L1": L1_on_wavelets,
+    "L2": L2,
+    "TV": TV,
+    "TSV": TSV,
+    "ME": ME,
 }
 
 

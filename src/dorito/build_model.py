@@ -25,11 +25,13 @@ def build_resolved_model(
     width: int = None,
     depth: int = None,
     separate_exposures: bool = False,
-    ramp_model=None,
     modeller=None,
     cal_fit=None,
     sci_fit=None,
     optics=None,
+    detector=None,
+    ramp_model=None,
+    read=None,
     Teff_cache="files/Teff_cache/",
     **model_kwargs,
 ):
@@ -61,6 +63,12 @@ def build_resolved_model(
 
     if optics is None:
         optics = amigo.core_models.AMIOptics()
+
+    if detector is None:
+        detector = amigo.core_models.LinearDetectorModel()
+
+    if read is None:
+        read = amigo.read_models.ReadModel()
 
     if modeller is None:
         modeller = models.ResolvedAmigoModel
@@ -102,8 +110,8 @@ def build_resolved_model(
         params,
         optics=optics,
         ramp=ramp_model,
-        detector=amigo.core_models.LinearDetectorModel(),
-        read=amigo.read_models.ReadModel(),
+        detector=detector,
+        read=read,
         filters=filters,
         **model_kwargs,
     )
@@ -181,9 +189,7 @@ def TD_prior(source_size, star_flux):
 
     # components
     star = np.zeros(shape).at[star_ind, star_ind].set(star_flux)
-    field = (
-        np.ones(shape).at[star_ind, star_ind].set(0.0) * (1 - star_flux) / (source_size**2 - 1)
-    )
+    field = np.ones(shape).at[star_ind, star_ind].set(0.0) * (1 - star_flux) / (source_size**2 - 1)
 
     # summing components
     distribution = star + field

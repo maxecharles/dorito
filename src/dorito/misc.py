@@ -9,7 +9,7 @@ def truncate_files(files, ngroups):
     # TODO do one_on_fs here
 
     for file in files:
-        
+
         top_group = file["RAMP"].data.shape[0]
         up_to = top_group - ngroups
 
