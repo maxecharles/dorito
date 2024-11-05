@@ -84,7 +84,8 @@ class ResolvedFit(ModelFit):
         )
         image = self.model_detector(image, model, exposure)
         ramp = self.model_ramp(image, model, exposure)
-        return self.model_read(ramp, model, exposure)
+        # return self.model_read(ramp, model, exposure)
+        return np.diff(self.model_read(ramp, model, exposure).data, axis=0)
 
 
 class DynamicResolvedFit(ResolvedFit):
