@@ -62,10 +62,10 @@ def build_resolved_model(
         sci_fit = model_fits.DynamicResolvedFit()
 
     if optics is None:
-        optics = amigo.core_models.AMIOptics()
+        optics = amigo.optical_models.AMIOptics(coherence_orders=4)
 
     if detector is None:
-        detector = amigo.core_models.LinearDetectorModel()
+        detector = amigo.detector_models.LinearDetectorModel()
 
     if read is None:
         read = amigo.read_models.ReadModel()
@@ -76,12 +76,12 @@ def build_resolved_model(
     # Setting up calibrator model
     cal_fit = amigo.model_fits.PointFit()
     cal_exposures = [amigo.core_models.Exposure(file, cal_fit) for file in cal_files]
-    cal_params = amigo.files.initialise_params(cal_exposures, optics)
+    cal_params = amigo.files.initialise_params(cal_exposures, optics, fit_reflectivity=True)
     cal_params["Teffs"] = amigo.search_Teffs.get_Teffs(cal_files, Teff_cache=Teff_cache)
 
     # Setting up science model
     sci_exposures = [amigo.core_models.Exposure(file, sci_fit) for file in sci_files]
-    sci_params = amigo.files.initialise_params(sci_exposures, optics)
+    sci_params = amigo.files.initialise_params(sci_exposures, optics, fit_reflectivity=True)
 
     # populating params with priors of extra parameters
     for param in extra_params:
