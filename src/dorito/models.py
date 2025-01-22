@@ -48,8 +48,8 @@ class ResolvedAmigoModel(BaseModeller):
         """
         return self._get_distribution_from_key(exposure.get_key("log_distribution"))
 
-    def model(self, exposure, **kwargs):
-        return exposure.fit(self, exposure, **kwargs)
+    # def model(self, fit, **kwargs):
+    #     return fit(self, **kwargs)
 
     def __getattr__(self, key):
         if key in self.params:
