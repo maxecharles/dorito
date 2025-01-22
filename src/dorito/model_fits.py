@@ -89,12 +89,6 @@ class ResolvedFit(ModelFit):
             self.get_distribution(model),
             method="fft",
         )
-<<<<<<< HEAD
-        image = self.model_detector(image, model, exposure)
-        ramp = self.model_ramp(image, model, exposure)
-        # return self.model_read(ramp, model, exposure)
-        return np.diff(self.model_read(ramp, model, exposure).data, axis=0)
-=======
         illuminance = self.model_illuminance(image, model)
         if return_paths:
             ramp, latent_path = self.model_ramp(illuminance, model, return_paths=return_paths)
@@ -102,7 +96,6 @@ class ResolvedFit(ModelFit):
         else:
             ramp = self.model_ramp(illuminance, model)
             return self.model_read(ramp, model)
->>>>>>> 4b42509 (updating to latest amigo)
 
 
 class DynamicResolvedFit(ResolvedFit):
