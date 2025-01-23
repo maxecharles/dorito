@@ -1,15 +1,9 @@
 from . import misc
 from . import models
-from . import model_fits
 
 import jax
-from jax import numpy as np, random as jr, Array
-from zodiax.experimental import deserialise
-import equinox as eqx
-import dLux as dl
+from jax import numpy as np
 import dLux.utils as dlu
-
-from astropy import units as u
 
 import amigo
 import jaxwt
@@ -19,20 +13,16 @@ import jaxshearlab.pyShearLab2D as jsl
 def build_resolved_model(
     cal_files,
     sci_files,
-    final_state,
-    extra_params: list = ["log_distribution", "spectral_coeffs"],
-    priors: dict = {},
+    state,
+    extra_priors: dict = {"log_distribution": None, "spectral_coeffs": None},
+    ramp_model=None,
     width: int = None,
     depth: int = None,
-    separate_exposures: bool = False,
+    separate_fits: bool = False,
     modeller=None,
-    cal_fit=None,
+    cal_fit=amigo.model_fits.PointFit,
     sci_fit=None,
     optics=None,
-    detector=None,
-    ramp_model=None,
-    read=None,
-    Teff_cache="files/Teff_cache/",
     **model_kwargs,
 ):
     """
@@ -55,46 +45,36 @@ def build_resolved_model(
         )
         ramp_model = amigo.ramp_models.MinimalConv(layers, pooling_layer)
 
-    if cal_fit is None:
-        cal_fit = amigo.model_fits.PointFit()
-
-    if sci_fit is None:
-        sci_fit = model_fits.DynamicResolvedFit()
-
     if optics is None:
-        optics = amigo.optical_models.AMIOptics(coherence_orders=4)
-
-    if detector is None:
-        detector = amigo.detector_models.LinearDetectorModel()
-
-    if read is None:
-        read = amigo.read_models.ReadModel()
+        optics = amigo.optical_models.AMIOptics(
+            radial_orders=4,
+            distortion_orders=3,
+        )
 
     if modeller is None:
         modeller = models.ResolvedAmigoModel
 
-    # Setting up calibrator model
-    cal_fit = amigo.model_fits.PointFit()
-    cal_exposures = [amigo.core_models.Exposure(file, cal_fit) for file in cal_files]
-    cal_params = amigo.files.initialise_params(cal_exposures, optics, fit_reflectivity=True)
-    cal_params["Teffs"] = amigo.search_Teffs.get_Teffs(cal_files, Teff_cache=Teff_cache)
+    # Generate calibrator and science fits separately
+    cal_fits = [cal_fit(file) for file in cal_files]
+    sci_fits = [sci_fit(file) for file in sci_files]
 
-    # Setting up science model
-    sci_exposures = [amigo.core_models.Exposure(file, sci_fit) for file in sci_files]
-    sci_params = amigo.files.initialise_params(sci_exposures, optics, fit_reflectivity=True)
+    # initialising model parameters
+    sci_params = amigo.files.initialise_params(sci_files, sci_fits, optics, Teff_cache=teff_cache)
+    cal_params = amigo.files.initialise_params(cal_files, cal_fits, optics, Teff_cache=teff_cache)
+    cal_params["Teffs"] = amigo.search_Teffs.get_Teffs(cal_files)
 
     # populating params with priors of extra parameters
-    for param in extra_params:
+    for param in extra_priors.keys():
         # skip wavelets as this is handled in the
         # WaveletModel class __init__ method
         if param == "wavelets":
-            model_kwargs["wavelets"] = priors[param]
-            model_kwargs["exposures"] = [*cal_exposures, *sci_exposures]
+            model_kwargs["wavelets"] = extra_priors[param]
+            model_kwargs["exposures"] = [*cal_fits, *sci_fits]
             continue
 
         extra_param_dict = {}
-        for exp in sci_exposures:
-            extra_param_dict[exp.get_key(param)] = priors[param]
+        for exp in sci_fits:
+            extra_param_dict[exp.get_key(param)] = extra_priors[param]
         sci_params[param] = extra_param_dict
 
     # combining calibrator and science
@@ -102,7 +82,7 @@ def build_resolved_model(
 
     # setting up filters
     filters = {}
-    for filt in list(set([exp.filter for exp in [*sci_exposures, *cal_exposures]])):
+    for filt in list(set([fit.filter for fit in [*sci_fits, *cal_fits]])):
         filters[filt] = amigo.misc.calc_throughput(filt, nwavels=9)
 
     # initialising model
@@ -110,21 +90,22 @@ def build_resolved_model(
         params,
         optics=optics,
         ramp=ramp_model,
-        detector=detector,
-        read=read,
+        detector=amigo.detector_models.SUB80Detector(),
+        read=amigo.read_models.ReadModel(),
         filters=filters,
         **model_kwargs,
     )
-    model = amigo.misc.populate_from_state(model, final_state)
+
+    model = amigo.misc.populate_from_state(model, state)
 
     # returning calibrator and science exposures separately
-    if separate_exposures:
-        return model, params, cal_exposures, sci_exposures
+    if separate_fits:
+        return model, params, cal_fits, sci_fits
 
     # otherwise, return all exposures together
     else:
-        exposures = [*cal_exposures, *sci_exposures]
-        return model, params, exposures
+        fits = [*cal_fits, *sci_fits]
+        return model, params, fits
 
 
 def gaussian_prior(source_size=100, scale=5):
