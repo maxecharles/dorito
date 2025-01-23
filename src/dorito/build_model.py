@@ -23,6 +23,7 @@ def build_resolved_model(
     cal_fit=amigo.model_fits.PointFit,
     sci_fit=None,
     optics=None,
+    Teff_cache="files/Teff_cache/",
     **model_kwargs,
 ):
     """
@@ -59,8 +60,8 @@ def build_resolved_model(
     sci_fits = [sci_fit(file) for file in sci_files]
 
     # initialising model parameters
-    sci_params = amigo.files.initialise_params(sci_files, sci_fits, optics, Teff_cache=teff_cache)
-    cal_params = amigo.files.initialise_params(cal_files, cal_fits, optics, Teff_cache=teff_cache)
+    sci_params = amigo.files.initialise_params(sci_files, sci_fits, optics, Teff_cache=Teff_cache)
+    cal_params = amigo.files.initialise_params(cal_files, cal_fits, optics, Teff_cache=Teff_cache)
     cal_params["Teffs"] = amigo.search_Teffs.get_Teffs(cal_files)
 
     # populating params with priors of extra parameters
