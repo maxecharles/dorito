@@ -194,7 +194,7 @@ def regularised_loss_fn(model, exposure, args):
     return likelihood + prior
 
 
-def prior_data_loss(model, exposure, args):
+def prior_data_balance(model, exposure, args):
     # regular likelihood term
     likelihood = amigo.stats.reg_loss_fn(model, exposure, args)
 
