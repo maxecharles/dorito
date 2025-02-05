@@ -8,6 +8,7 @@ from . import model_fits
 from . import models
 from . import plotting
 from . import stats
+from . import wavelets
 
 __all__ = [
     build_model,
