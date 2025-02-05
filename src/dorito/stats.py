@@ -1,5 +1,6 @@
 from jax import numpy as np
 import amigo
+import zodiax as zdx
 
 
 def get_star_idx(arr):
@@ -191,10 +192,10 @@ def regularised_loss_fn(model, exposure, args):
     else:
         prior = 0.0
 
-    return likelihood + prior
+    return np.hypot(likelihood, prior)
 
 
-def prior_data_balance(model, exposure, args):
+def prior_data_balance(model, exposure, args, coeff=1.0):
     # regular likelihood term
     likelihood = amigo.stats.reg_loss_fn(model, exposure, args)
 
@@ -205,7 +206,7 @@ def prior_data_balance(model, exposure, args):
     else:
         prior = 0.0
 
-    return likelihood, prior
+    return likelihood, prior / coeff
 
 
 def normalise_distribution(model, model_params, args, key):
@@ -224,20 +225,73 @@ def normalise_wavelets(model, model_params, args, key):
     if "wavelets" not in params.keys():
         return model_params, key
 
-    # this is only to use methods! Does not update outside this function
-    model = model.set("params", params)
-
-    for k in params["wavelets"].keys():
-        # reconstructing, normalising
-        distribution = model._get_distribution_from_key(k)
-        distribution = np.clip(distribution, 0.0)
-        distribution = distribution / distribution.sum()
-
-        # converting to wavelet coefficients
-        norm_wavelets = model.wavelet_transform(distribution)
-        norm_coeffs = model.flatten_wavelets(norm_wavelets)
-
-        # re-assigning
-        params["wavelets"][k] = norm_coeffs
+    for k, wavelets in params["wavelets"].items():
+        wavelets = wavelets.normalise()
+        params["wavelets"][k] = wavelets
 
     return model_params.set("params", params), key
+
+
+def lcurve_sweep(
+    regulariser: str,  # e.g. "L1", "L2", "TV", "QV", "ME", "SF"
+    coeffs,
+    model,
+    exposures: list,
+    args: dict,  # must contain reg_dict and reg_func_dict
+    optimisers: dict,
+    fishers: dict,
+    **optimise_kwargs,
+):
+    """
+    Function to find an optimal regularisation hyperparameter using the l-curve method.
+
+    Parameters
+    ----------
+    regulariser : str
+        Name of the regulariser to be optimised.
+    coeffs : array_like
+        Regularisation hyperparameters to be tested.
+    model : amigo.Model
+        Model to be optimised.
+    exposures : list
+        List of exposures to be used in the optimisation.
+    args : dict
+        Dictionary containing the regularisation dictionary and regularisation function dictionary.
+    optimisers : dict
+        Dictionary containing the optimisers to be used in the optimisation.
+    fishers : dict
+        Dictionary containing the fishers to be used in the optimisation.
+    optimise_kwargs : dict
+        Additional keyword arguments to be passed to the optimisation function.
+
+    Returns
+    -------
+    tuple
+        Tuple containing the balance, regularisation hyperparameters and log distributions.
+    """
+
+    @zdx.filter_jit
+    def calc_balance(model, exposures, args, coeff):
+        return np.array([prior_data_balance(model, exp, args, coeff) for exp in exposures]).sum(0)
+
+    balances = []
+    log_dists = []
+
+    for coeff in coeffs:
+
+        args["reg_dict"][regulariser] = coeff
+
+        optim_model, _, _, _ = amigo.fitting.optimise(
+            model,
+            exposures,
+            optimisers,
+            fishers,
+            args=args,
+            **optimise_kwargs,
+        )
+
+        balance = calc_balance(optim_model, exposures, args, coeff)
+        balances.append(balance)
+        log_dists.append(optim_model.log_distribution)
+
+    return np.array(balances).T, coeffs, log_dists
