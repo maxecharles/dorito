@@ -52,7 +52,7 @@ def build_resolved_model(
         )
 
     if modeller is None:
-        modeller = dorito.models.ResolvedAmigoModel
+        modeller = models.ResolvedAmigoModel
 
     # Generate calibrator and science fits separately
     cal_fits = [cal_fit(file) for file in cal_files]
@@ -71,7 +71,7 @@ def build_resolved_model(
         sci_params[param] = extra_param_dict
 
     # combining calibrator and science
-    params = dorito.misc.combine_param_dicts(cal_params, sci_params)
+    params = misc.combine_param_dicts(cal_params, sci_params)
 
     # setting up filters
     filters = {}
