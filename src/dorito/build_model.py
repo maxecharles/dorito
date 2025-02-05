@@ -24,7 +24,6 @@ def build_resolved_model(
     sci_fit=None,
     optics=None,
     Teff_cache="files/Teff_cache/",
-    **model_kwargs,
 ):
     """
     Constructing the model.
@@ -53,7 +52,7 @@ def build_resolved_model(
         )
 
     if modeller is None:
-        modeller = models.ResolvedAmigoModel
+        modeller = dorito.models.ResolvedAmigoModel
 
     # Generate calibrator and science fits separately
     cal_fits = [cal_fit(file) for file in cal_files]
@@ -66,20 +65,13 @@ def build_resolved_model(
 
     # populating params with priors of extra parameters
     for param in extra_priors.keys():
-        # skip wavelets as this is handled in the
-        # WaveletModel class __init__ method
-        if param == "wavelets":
-            model_kwargs["wavelets"] = extra_priors[param]
-            model_kwargs["exposures"] = [*cal_fits, *sci_fits]
-            continue
-
         extra_param_dict = {}
         for exp in sci_fits:
             extra_param_dict[exp.get_key(param)] = extra_priors[param]
         sci_params[param] = extra_param_dict
 
     # combining calibrator and science
-    params = misc.combine_param_dicts(cal_params, sci_params)
+    params = dorito.misc.combine_param_dicts(cal_params, sci_params)
 
     # setting up filters
     filters = {}
@@ -94,7 +86,6 @@ def build_resolved_model(
         detector=amigo.detector_models.SUB80Detector(),
         read=amigo.read_models.ReadModel(),
         filters=filters,
-        **model_kwargs,
     )
 
     model = amigo.misc.populate_from_state(model, state)
