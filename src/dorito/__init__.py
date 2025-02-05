@@ -16,4 +16,5 @@ __all__ = [
     models,
     plotting,
     stats,
+    wavelets,
 ]
