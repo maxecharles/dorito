@@ -12,6 +12,9 @@ class ResolvedAmigoModel(BaseModeller):
     ramp: None
     read: None
     visibilities: None
+    # TODO WAVELETS IS ONE OF THESE THINGS
+    # EMPTY CLASSES THAT GET THE BITS POPULATED WHEN YOU CALL MODEL AND THE THINGS THAT MAP TO THE RIGHT PLACE INTHE MODEL PARAMS IS DETERMIEND BY THE MODEL FITS WHICCH ALLOWS YOU THAT FINE GRAINED CONTROL
+    # MODEL FITS JUST MAPS YOU FROM THE PARAMEERS DICTIONARIY
 
     def __init__(self, params, optics, ramp, detector, read, filters):
         self.filters = filters
@@ -62,6 +65,8 @@ class ResolvedAmigoModel(BaseModeller):
 
 
 class WaveletModel(ResolvedAmigoModel):
+
+    # TODO: wavelets : None
 
     def __init__(
         self,

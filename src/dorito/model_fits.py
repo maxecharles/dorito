@@ -115,7 +115,7 @@ class DynamicResolvedFit(ResolvedFit):
 class WaveletFit(ResolvedFit):
     def get_key(self, param):
         match param:
-            case "wavelets":
+            case "wavelets":  # TODO change this to approx, details
                 return self.filter
 
         return super().get_key(param)

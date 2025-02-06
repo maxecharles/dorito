@@ -21,6 +21,9 @@ class Wavelets(Base):
         level=2,
         wavelet="db2",
     ):
+
+        # TODO WRAPPER HOLDER ZODIAX WRAPPERS
+
         # setting the wavelet parameters
         self.level = level
         self.wavelet = wavelet
