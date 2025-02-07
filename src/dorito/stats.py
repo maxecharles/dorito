@@ -273,7 +273,7 @@ def lcurve_sweep(
         return np.array([prior_data_balance(model, exp, args, coeff) for exp in exposures]).sum(0)
 
     balances = []
-    log_dists = []
+    dists = []
 
     for coeff in coeffs:
 
@@ -290,6 +290,10 @@ def lcurve_sweep(
 
         balance = calc_balance(optim_model, exposures, args, coeff)
         balances.append(balance)
-        log_dists.append(optim_model.log_distribution)
 
-    return np.array(balances).T, coeffs, log_dists
+        if "log_distribution" in optim_model.params.keys():
+            dists.append(optim_model.log_distribution)
+        else:
+            dists.append(optim_model.get_distribution(exposures[0]))
+
+    return np.array(balances).T, coeffs, dists

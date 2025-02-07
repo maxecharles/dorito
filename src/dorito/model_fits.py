@@ -121,7 +121,8 @@ class WaveletFit(ResolvedFit):
         wavelets = model.wavelets
 
         if "approx" in model.params.keys() and "details" in model.params.keys():
-            approx = model.approx[self.get_key("approx")]
+            approx = 10 ** model.approx[self.get_key("approx")]  # try fitting log approx
+            # approx = model.approx[self.get_key("approx")]
             details = model.details[self.get_key("details")]
 
             wavelets = wavelets.set(["approx", "values"], [approx, details])

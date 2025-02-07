@@ -38,14 +38,9 @@ class Wavelets(zdx.WrapperHolder):
         """
         Returns the normalised intensity distribution of the source.
         """
-        # building the detail tree from the values and structure
-        detail_tree = self.build
-
-        # converting to wavelet coefficients with approx
-        coeffs = [self.approx[None, ...], *detail_tree]
 
         # reconstructing the distribution
-        return jaxwt.waverec2(coeffs, self.wavelet)[0]
+        return jaxwt.waverec2(self.coeffs, self.wavelet)[0]
 
     def wavelet_transform(self, array) -> Array:
         # converting to wavelet coefficients
@@ -72,7 +67,25 @@ class Wavelets(zdx.WrapperHolder):
 
         # converting to wavelet coefficients
         approx, detail_tree = self.wavelet_transform(dist)
-        detail_leaves, _ = jtu.flatten(detail_tree)
-        details = np.concatenate([val.flatten() for val in detail_leaves])
+        details = self.flatten_details(detail_tree)
 
         return self.set(["approx", "values"], [approx, details])
+
+    @property
+    def coeffs(self):
+        """
+        Returns the wavelet coefficients.
+        """
+        # building the detail tree from the values and structure
+        detail_tree = self.build
+
+        # converting to wavelet coefficients with approx
+        return [self.approx[None, ...], *detail_tree]
+
+    def flatten_details(self, detail_tree):
+        """
+        Flattens the wavelet coefficients.
+        """
+        # flattening the coefficients
+        detail_leaves, _ = jtu.flatten(detail_tree)
+        return np.concatenate([val.flatten() for val in detail_leaves])
