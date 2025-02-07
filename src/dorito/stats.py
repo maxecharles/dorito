@@ -121,10 +121,8 @@ def L1(model, exposure, args):
 
 
 def L1_on_wavelets(model, exposure, args):
-    flux = 10 ** model.fluxes[exposure.get_key("fluxes")]
-    wavelets = model.wavelets[exposure.get_key("wavelets")]
-
-    return L1_loss(flux * wavelets)
+    details = model.details[exposure.get_key("details")]
+    return L1_loss(details)
 
 
 def L2(model, exposure, args):

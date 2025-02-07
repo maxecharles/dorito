@@ -1,19 +1,13 @@
-from zodiax import Base
+import zodiax as zdx
 import jax
 from jax import numpy as np, tree as jtu, Array
 import jaxwt
 
 
-class Wavelets(Base):
+class Wavelets(zdx.WrapperHolder):
     level: int
     wavelet: str
     approx: Array
-    details: Array
-
-    shapes: list
-    sizes: list
-    starts: list
-    tree_def: None
 
     def __init__(
         self,
@@ -22,7 +16,8 @@ class Wavelets(Base):
         wavelet="db2",
     ):
 
-        # TODO WRAPPER HOLDER ZODIAX WRAPPERS
+        # Overriden later, just to avoid recursion error
+        self.structure = None
 
         # setting the wavelet parameters
         self.level = level
@@ -31,34 +26,25 @@ class Wavelets(Base):
         # converting to wavelet coefficients
         distribution = distribution / distribution.sum()
         approx, detail_tree = self.wavelet_transform(distribution)
-
-        # getting shapes, sizes and starts for the wavelet coefficients
-        detail_leaves, tree_def = jtu.flatten(detail_tree)
-        self.shapes = [v.shape for v in detail_leaves]
-        self.sizes = [int(v.size) for v in detail_leaves]
-        self.starts = [int(i) for i in np.cumsum(np.array([0] + self.sizes))]
-        self.tree_def = tree_def
-
-        # setting the approx and details
         self.approx = approx
-        self.details = self.flatten_detail_tree(detail_tree)
 
-    def flatten_detail_tree(self, detail_tree):
-        detail_leaves, _ = jtu.flatten(detail_tree)
-        return np.concatenate([val.flatten() for val in detail_leaves])
+        # storing the details in a EquinoxWrapper
+        details, structure = zdx.build_wrapper(detail_tree)
+        self.values = details
+        self.structure = structure
 
     @property
     def distribution(self) -> Array:
         """
         Returns the normalised intensity distribution of the source.
         """
-        detail_leaves = [
-            jax.lax.dynamic_slice(self.details, (start,), (size,)).reshape(shape)
-            for start, size, shape in zip(self.starts, self.sizes, self.shapes)
-        ]
-        detail_tree = jtu.unflatten(self.tree_def, detail_leaves)
+        # building the detail tree from the values and structure
+        detail_tree = self.build
 
+        # converting to wavelet coefficients with approx
         coeffs = [self.approx[None, ...], *detail_tree]
+
+        # reconstructing the distribution
         return jaxwt.waverec2(coeffs, self.wavelet)[0]
 
     def wavelet_transform(self, array) -> Array:
@@ -79,8 +65,14 @@ class Wavelets(Base):
         corresponding distribution sums to 1.
         """
         dist = self.distribution
-        norm_dist = dist / dist.sum()
-        approx, detail_tree = self.wavelet_transform(norm_dist)
-        details = self.flatten_detail_tree(detail_tree)
 
-        return self.set(["approx", "details"], [approx, details])
+        # clipping and normalising the distribution
+        dist = np.clip(dist, 0)
+        dist = dist / dist.sum()
+
+        # converting to wavelet coefficients
+        approx, detail_tree = self.wavelet_transform(dist)
+        detail_leaves, _ = jtu.flatten(detail_tree)
+        details = np.concatenate([val.flatten() for val in detail_leaves])
+
+        return self.set(["approx", "values"], [approx, details])

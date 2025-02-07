@@ -113,16 +113,43 @@ class DynamicResolvedFit(ResolvedFit):
 
 
 class WaveletFit(ResolvedFit):
+
+    def update_wavelets(self, model):
+        """
+        Updates the wavelet coefficients for the given model.
+        """
+        wavelets = model.wavelets
+
+        if "approx" in model.params.keys() and "details" in model.params.keys():
+            approx = model.approx[self.get_key("approx")]
+            details = model.details[self.get_key("details")]
+
+            wavelets = wavelets.set(["approx", "values"], [approx, details])
+
+        return wavelets
+
+    def get_distribution(self, model) -> Array:
+        """
+        Returns the normalised intensity distribution of the source
+        from the exposure object.
+        """
+        wavelets = self.update_wavelets(model)
+        return wavelets.distribution
+
     def get_key(self, param):
         match param:
-            case "wavelets":  # TODO change this to approx, details
+            case "approx":
+                return self.filter
+            case "details":
                 return self.filter
 
         return super().get_key(param)
 
     def map_param(self, param):
         match param:
-            case "wavelets":
+            case "approx":
+                return f"{param}.{self.get_key(param)}"
+            case "details":
                 return f"{param}.{self.get_key(param)}"
 
         return super().map_param(param)

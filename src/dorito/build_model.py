@@ -24,6 +24,7 @@ def build_resolved_model(
     sci_fit=None,
     optics=None,
     Teff_cache="files/Teff_cache/",
+    **model_kwargs,
 ):
     """
     Constructing the model.
@@ -86,6 +87,7 @@ def build_resolved_model(
         detector=amigo.detector_models.SUB80Detector(),
         read=amigo.read_models.ReadModel(),
         filters=filters,
+        **model_kwargs,
     )
 
     model = amigo.misc.populate_from_state(model, state)

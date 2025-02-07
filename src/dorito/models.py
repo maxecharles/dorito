@@ -66,7 +66,7 @@ class ResolvedAmigoModel(BaseModeller):
 
 class WaveletModel(ResolvedAmigoModel):
 
-    # TODO: wavelets : None
+    wavelets: None
 
     def __init__(
         self,
@@ -76,10 +76,9 @@ class WaveletModel(ResolvedAmigoModel):
         detector,
         read,
         filters,
+        wavelets,
     ):
-
-        if "wavelets" not in params:
-            raise ValueError("Wavelets must be provided in params.")
+        self.wavelets = wavelets
 
         super().__init__(
             params=params,
@@ -90,12 +89,14 @@ class WaveletModel(ResolvedAmigoModel):
             filters=filters,
         )
 
-    def _get_distribution_from_key(self, exp_key):
-        wavelets = self.params["wavelets"][exp_key]
-        return wavelets.distribution
-
     def get_distribution(self, exposure) -> Array:
         """
-        Returns the normalised intensity distribution of the source.
+        Returns the normalised intensity distribution of the source
+        from the exposure object.
         """
-        return _get_distribution_from_key(exposure.get_key("wavelets"))
+        return exposure.get_distribution(self)
+
+    # def __getattr__(self, key):
+    #     if hasattr(self.wavelets, key):
+    #         return getattr(self.wavelets, key)
+    #     return super().__getattr__(key)
