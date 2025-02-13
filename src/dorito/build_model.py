@@ -200,7 +200,7 @@ def wavelet_prior(source_size, level=None, wavelet="db2"):
     return jaxwt.conv_fwt_2d.wavedec2(ones, wavelet, level=level)
 
 
-def shearlet_prior(source_size=None, nScales=2, shearletSystem=None):
+def shearlet_prior(source_size=None, nScales=2, shearletSystem=None, array=None):
     """
     Creates a set of shearlet coefficients for a given source
     corresponding to a normalised uniform array.
@@ -223,6 +223,14 @@ def shearlet_prior(source_size=None, nScales=2, shearletSystem=None):
         The shearlet system used to calculate the coefficients
     """
 
+    # creating a uniform distribution
+    if array is None:
+        array = np.ones((source_size, source_size))
+        array = array / array.sum()
+
+    if array is not None:
+        source_size = array.shape[0]
+
     if shearletSystem is None:
         if source_size is None:
             raise ValueError("Source size must be provided if no shearlet system is provided.")
@@ -234,12 +242,8 @@ def shearlet_prior(source_size=None, nScales=2, shearletSystem=None):
             nScales=nScales,
         )
 
-    # creating a uniform distribution
-    ones = np.ones((source_size, source_size))
-    ones = ones / ones.sum()
-
     # transofrming to shearlet coefficients
-    shearlets = jsl.SLsheardec2D(ones, shearletSystem)
+    shearlets = jsl.SLsheardec2D(array, shearletSystem)
 
     return shearlets, shearletSystem
 
