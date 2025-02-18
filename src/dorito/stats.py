@@ -181,7 +181,8 @@ def regularised_loss_fn(model, exposure, args):
     # this is per exposure
 
     # regular likelihood term
-    likelihood = amigo.stats.reg_loss_fn(model, exposure, args)
+    # likelihood = amigo.stats.reg_loss_fn(model, exposure, args)
+    likelihood = np.nansum(amigo.stats.log_likelihood(exposure(model), exposure, args))
 
     # grabbing and exponentiating log distributions
     if not exposure.calibrator:
@@ -207,27 +208,27 @@ def prior_data_balance(model, exposure, args, coeff=1.0):
     return likelihood, prior / coeff
 
 
-def normalise_distribution(model, model_params, args, key):
+def normalise_distribution(model_params, args):
     params = model_params.params
     if "log_distribution" in params.keys():
         for k, log_dist in params["log_distribution"].items():
             distribution = 10**log_dist
             params["log_distribution"][k] = np.log10(distribution / distribution.sum())
 
-    return model_params.set("params", params), key
+    return model_params.set("params", params), args
 
 
-def normalise_wavelets(model, model_params, args, key):
+def normalise_wavelets(model_params, args):
     params = model_params.params
 
     if "wavelets" not in params.keys():
-        return model_params, key
+        return model_params, args
 
     for k, wavelets in params["wavelets"].items():
         wavelets = wavelets.normalise()
         params["wavelets"][k] = wavelets
 
-    return model_params.set("params", params), key
+    return model_params.set("params", params), args
 
 
 def lcurve_sweep(

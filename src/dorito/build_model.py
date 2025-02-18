@@ -50,6 +50,7 @@ def build_resolved_model(
         optics = amigo.optical_models.AMIOptics(
             radial_orders=4,
             distortion_orders=3,
+            oversample=3,
         )
 
     if modeller is None:
@@ -84,7 +85,7 @@ def build_resolved_model(
         params,
         optics=optics,
         ramp=ramp_model,
-        detector=amigo.detector_models.SUB80Detector(),
+        detector=amigo.detector_models.SUB80Detector(ramp_model=ramp_model, oversample=3),
         read=amigo.read_models.ReadModel(),
         filters=filters,
         **model_kwargs,

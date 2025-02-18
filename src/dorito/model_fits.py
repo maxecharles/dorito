@@ -83,7 +83,7 @@ class ResolvedFit(ModelFit):
         """
         return model._get_distribution_from_key(self.get_key("log_distribution"))
 
-    def simulate(self, model, return_paths=False):
+    def simulate(self, model, return_paths=False, return_bleed=False):
         psf = self.model_psf(model)
         image = psf.convolve(
             self.get_distribution(model),
