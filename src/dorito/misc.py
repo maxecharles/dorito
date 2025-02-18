@@ -14,8 +14,10 @@ def truncate_files(files, ngroups):
         up_to = top_group - ngroups
 
         # files are mutable, so they will change in place
-        for attr in ["RAMP", "SLOPE", "RAMP_ERR", "SLOPE_ERR", "RAMP_SUP", "SLOPE_SUP"]:
+        for attr in ["RAMP", "SLOPE", "RAMP_ERR", "RAMP_SUP", "SLOPE_SUP"]:
             file[attr].data = file[attr].data[:-up_to, ...]
+
+        file["SLOPE_ERR"].data = file["SLOPE_ERR"].data[:-up_to, :-up_to, ...]
 
 
 def combine_param_dicts(cal_params, sci_params):
