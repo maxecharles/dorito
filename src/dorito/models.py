@@ -3,6 +3,7 @@ from amigo.optical_models import AMIOptics
 
 # core jax
 from jax import Array
+import dLux.utils as dlu
 
 
 class ResolvedAmigoModel(BaseModeller):
@@ -34,6 +35,15 @@ class ResolvedAmigoModel(BaseModeller):
         log_dist = self.params["log_distribution"][exp_key]
 
         return 10**log_dist
+
+    def _get_pa_from_key(self, exp_key) -> Array:
+        """
+        Returns the normalised intensity distribution of the source
+        from the key of the parameter.
+        """
+        pa_deg = self.params["position_angles"][exp_key]
+
+        return dlu.deg2rad(pa_deg)
 
     def get_distribution(self, exposure) -> Array:
         """

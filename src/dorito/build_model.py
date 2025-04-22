@@ -16,8 +16,7 @@ def build_resolved_model(
     state,
     extra_priors: dict = {"log_distribution": None, "spectral_coeffs": None},
     ramp_model=None,
-    width: int = None,
-    depth: int = None,
+    oversample=3,
     separate_fits: bool = False,
     modeller=None,
     cal_fit=amigo.model_fits.PointFit,
@@ -30,27 +29,27 @@ def build_resolved_model(
     Constructing the model.
     """
 
-    if ramp_model is None:
-        if width is None or depth is None:
-            raise ValueError("If ramp_model is not provided, width and depth must be specified")
+    # if ramp_model is None:
+    #     if width is None or depth is None:
+    #         raise ValueError("If ramp_model is not provided, width and depth must be specified")
 
-    if ramp_model is not None and (width is not None or depth is not None):
-        raise ValueError("If ramp_model is provided, width and depth must not be specified")
+    # if ramp_model is not None and (width is not None or depth is not None):
+    #     raise ValueError("If ramp_model is provided, width and depth must not be specified")
 
-    # Ramp
-    if ramp_model is None:
-        layers, pooling_layer = amigo.ramp_models.build_pooled_layers(
-            width=width,
-            depth=depth,
-            pooling="avg",
-        )
-        ramp_model = amigo.ramp_models.MinimalConv(layers, pooling_layer)
+    # # Ramp
+    # if ramp_model is None:
+    #     layers, pooling_layer = amigo.ramp_models.build_pooled_layers(
+    #         width=width,
+    #         depth=depth,
+    #         pooling="avg",
+    #     )
+    #     ramp_model = amigo.ramp_models.MinimalConv(layers, pooling_layer)
 
     if optics is None:
         optics = amigo.optical_models.AMIOptics(
             radial_orders=4,
             distortion_orders=3,
-            oversample=3,
+            oversample=oversample,
         )
 
     if modeller is None:
@@ -85,7 +84,7 @@ def build_resolved_model(
         params,
         optics=optics,
         ramp=ramp_model,
-        detector=amigo.detector_models.SUB80Detector(ramp_model=ramp_model, oversample=3),
+        detector=amigo.detector_models.SUB80Detector(ramp_model=ramp_model, oversample=oversample),
         read=amigo.read_models.ReadModel(),
         filters=filters,
         **model_kwargs,
