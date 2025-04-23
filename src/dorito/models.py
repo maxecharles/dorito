@@ -21,7 +21,7 @@ class ResolvedAmigoModel(BaseModeller):
     def __init__(
         self,
         source_size,
-        params,
+        exposures,
         optics,
         detector,
         read,
