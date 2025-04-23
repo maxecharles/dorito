@@ -18,17 +18,17 @@ class ResolvedAmigoModel(BaseModeller):
     # EMPTY CLASSES THAT GET THE BITS POPULATED WHEN YOU CALL MODEL AND THE THINGS THAT MAP TO THE RIGHT PLACE INTHE MODEL PARAMS IS DETERMIEND BY THE MODEL FITS WHICCH ALLOWS YOU THAT FINE GRAINED CONTROL
     # MODEL FITS JUST MAPS YOU FROM THE PARAMEERS DICTIONARIY
 
-        def __init__(
-            self,
-            source_size,
-            params,
-            optics,
-            detector,
-            read,
-            rotate=False,
-            rolls_dict=None,
-            source_oversample=1.0,
-        ):
+    def __init__(
+        self,
+        source_size,
+        params,
+        optics,
+        detector,
+        read,
+        rotate=False,
+        rolls_dict=None,
+        source_oversample=1.0,
+    ):
 
         self.optics = optics
         self.detector = detector
