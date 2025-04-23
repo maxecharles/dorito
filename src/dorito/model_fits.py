@@ -1,5 +1,6 @@
 from amigo.model_fits import ModelFit
 from jax import Array, numpy as np, vmap
+import dLux.utils as dlu
 
 
 class ResolvedFit(ModelFit):
@@ -12,8 +13,8 @@ class ResolvedFit(ModelFit):
         match param:
             case "log_distribution":
                 return self.filter
-            case "spectral_coeffs":
-                return self.filter
+            case "position_angles":
+                return self.key
 
         return super().get_key(param)
 
@@ -21,72 +22,31 @@ class ResolvedFit(ModelFit):
         match param:
             case "log_distribution":
                 return f"{param}.{self.get_key(param)}"
-            case "spectral_coeffs":
+            case "position_angles":
                 return f"{param}.{self.get_key(param)}"
 
         return super().map_param(param)
 
-    def _eval_weight(self, model, wavelength: Array) -> Array:
-        """
-        Evaluates the polynomial function at the supplied wavelength.
-
-        Parameters
-        ----------
-        wavelength : Array, metres
-            The wavelength at which to evaluate the polynomial function.
-
-        Returns
-        -------
-        weight : Array
-            The relative weight of the supplied wavelength.
-        """
-        coeffs = model.spectral_coeffs[self.get_key("spectral_coeffs")]
-
-        return np.array([coeffs[i] * wavelength**i for i in range(len(coeffs))]).sum()
-
-    def spectral_weights(self, model) -> Array:
-        """
-        Gets the relative spectral weights by evaluating the polynomial function at the
-        internal wavelengths. Output weights are automatically normalised to a sum of
-        1.
-
-        Returns
-        -------
-        weights : Array
-            The normalised relative weights of each wavelength.
-        """
-        wavelengths = model.filters[self.filter][0]
-        weights = vmap(self._eval_weight, in_axes=(None, 0))(model, wavelengths)
-        return weights / weights.sum()
-
-    def get_spectra(self, model):
-        """
-        Gets the wavelengths and normalised spectral weights
-        for the given exposure.
-
-        Returns
-        -------
-        wavels : Array
-            The wavelengths of the spectral weights.
-        weights : Array
-            The normalised spectral weights.
-        """
-        wavels, filt_weights = model.filters[self.filter]
-        source_weights = self.spectral_weights(model)
-        weights = filt_weights * (source_weights / source_weights.sum())
-        return wavels, weights / weights.sum()
-
-    def get_distribution(self, model) -> Array:
+    def get_distribution(self, model, rotate=False):
         """
         Returns the normalised intensity distribution of the source
         from the exposure object.
         """
-        return model._get_distribution_from_key(self.get_key("log_distribution"))
+        dist = model._get_distribution_from_key(self.get_key("log_distribution"))
+
+        if rotate:
+            if type(rotate) == bool:
+                pa = model._get_pa_from_key(self.get_key("position_angles"))
+            else:
+                pa = rotate
+            dist = dlu.rotate(dist, angle=-pa)
+
+        return dist
 
     def simulate(self, model, return_paths=False, return_bleed=False):
         psf = self.model_psf(model)
         image = psf.convolve(
-            self.get_distribution(model),
+            self.get_distribution(model, rotate=model.rotate),
             method="fft",
         )
         illuminance = self.model_illuminance(image, model)
