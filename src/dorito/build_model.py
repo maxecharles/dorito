@@ -1,4 +1,3 @@
-from . import misc
 from . import models
 
 import jax
@@ -14,7 +13,8 @@ def build_resolved_model(
     cal_files,
     sci_files,
     state,
-    extra_priors: dict = {"log_distribution"},
+    source_size,
+    rolls_dict=None,
     ramp_model=None,
     oversample=3,
     separate_fits: bool = False,
@@ -41,46 +41,29 @@ def build_resolved_model(
     # Generate calibrator and science fits separately
     cal_fits = [cal_fit(file) for file in cal_files]
     sci_fits = [sci_fit(file) for file in sci_files]
-
-    # initialising model parameters
-    cal_params = amigo.files.initialise_params(cal_fits, optics)
-    sci_params = amigo.files.initialise_params(sci_fits, optics)
-
-    # populating params with priors of extra parameters
-    for param in extra_priors.keys():
-        extra_param_dict = {}
-        for exp in sci_fits:
-            extra_param_dict[exp.get_key(param)] = extra_priors[param]
-        sci_params[param] = extra_param_dict
-
-    # combining calibrator and science
-    params = misc.combine_param_dicts(cal_params, sci_params)
-
-    # # setting up filters
-    # filters = {}
-    # for filt in list(set([fit.filter for fit in [*sci_fits, *cal_fits]])):
-    #     filters[filt] = amigo.misc.calc_throughput(filt, nwavels=9)
+    fits = [*cal_fits, *sci_fits]
 
     # initialising model
-    model = modeller(
-        params,
+    model = models.ResolvedAmigoModel(
+        source_size,
+        fits,
+        rolls_dict=rolls_dict,
         optics=optics,
         detector=amigo.detector_models.SUB80Detector(ramp_model=ramp_model, oversample=oversample),
         read=amigo.read_models.ReadModel(),
-        # filters=filters,
-        **model_kwargs,
+        # **model_kwargs,
     )
 
     model = amigo.misc.populate_from_state(model, state)
 
     # returning calibrator and science exposures separately
     if separate_fits:
-        return model, params, cal_fits, sci_fits
+        return model, cal_fits, sci_fits
 
     # otherwise, return all exposures together
     else:
         fits = [*cal_fits, *sci_fits]
-        return model, params, fits
+        return model, fits
 
 
 def gaussian_prior(source_size=100, scale=5):

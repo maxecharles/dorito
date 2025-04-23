@@ -11,7 +11,6 @@ class ResolvedAmigoModel(BaseModeller):
     optics: AMIOptics
     detector: None
     read: None
-    visibilities: None
     rotate: bool = False
     source_oversample: int = 1
 
@@ -19,22 +18,21 @@ class ResolvedAmigoModel(BaseModeller):
     # EMPTY CLASSES THAT GET THE BITS POPULATED WHEN YOU CALL MODEL AND THE THINGS THAT MAP TO THE RIGHT PLACE INTHE MODEL PARAMS IS DETERMIEND BY THE MODEL FITS WHICCH ALLOWS YOU THAT FINE GRAINED CONTROL
     # MODEL FITS JUST MAPS YOU FROM THE PARAMEERS DICTIONARIY
 
-    def __init__(
-        self,
-        params,
-        optics,
-        detector,
-        read,
-        rotate=False,
-        source_oversample=1.0,
-    ):  # , filters):
+    def __init__(self, source_size, exposures, optics, detector, read, rolls_dict=None):
+
         self.optics = optics
         self.detector = detector
         self.read = read
-        self.visibilities = None
-        self.rotate = rotate
+        self.params = None
 
-        super().__init__(params)
+        params = {}
+        for exp in exposures:
+            param_dict = exp.initialise_params(optics, source_size, rolls_dict)
+            for param, (key, value) in param_dict.items():
+                if param not in params.keys():
+                    params[param] = {}
+                params[param][key] = value
+        self.params = params
 
     def _get_distribution_from_key(self, exp_key) -> Array:
         """
@@ -78,8 +76,8 @@ class ResolvedAmigoModel(BaseModeller):
             return getattr(self.ramp, key)
         if hasattr(self.read, key):
             return getattr(self.read, key)
-        if hasattr(self.visibilities, key):
-            return getattr(self.visibilities, key)
+        # if hasattr(self.visibilities, key):
+        #     return getattr(self.visibilities, key)
         raise AttributeError(f"{self.__class__.__name__} has no attribute " f"{key}.")
 
 

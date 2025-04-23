@@ -27,6 +27,25 @@ class ResolvedFit(ModelFit):
 
         return super().map_param(param)
 
+    def initialise_params(self, optics, source_size, rolls_dict=None):
+
+        params = super().initialise_params(optics)
+
+        # log distribution
+        params["log_distribution"] = (
+            self.get_key("log_distribution"),
+            np.log10(np.ones((source_size, source_size)) / source_size**2),
+        )
+
+        # position angles
+        key = self.get_key("position_angles")
+        if rolls_dict is not None:
+            params["position_angles"] = (key, rolls[key])
+        else:
+            params["position_angles"] = (key, np.array([0.0]))
+
+        return params
+
     def get_distribution(self, model, rotate=False):
         """
         Returns the normalised intensity distribution of the source
