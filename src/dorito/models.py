@@ -7,23 +7,32 @@ import dLux.utils as dlu
 
 
 class ResolvedAmigoModel(BaseModeller):
-    filters: dict
+    # filters: dict
     optics: AMIOptics
     detector: None
-    ramp: None
     read: None
     visibilities: None
+    rotate: bool = False
+    source_oversample: int = 1
+
     # TODO WAVELETS IS ONE OF THESE THINGS
     # EMPTY CLASSES THAT GET THE BITS POPULATED WHEN YOU CALL MODEL AND THE THINGS THAT MAP TO THE RIGHT PLACE INTHE MODEL PARAMS IS DETERMIEND BY THE MODEL FITS WHICCH ALLOWS YOU THAT FINE GRAINED CONTROL
     # MODEL FITS JUST MAPS YOU FROM THE PARAMEERS DICTIONARIY
 
-    def __init__(self, params, optics, ramp, detector, read, filters):
-        self.filters = filters
+    def __init__(
+        self,
+        params,
+        optics,
+        detector,
+        read,
+        rotate=False,
+        source_oversample=1.0,
+    ):  # , filters):
         self.optics = optics
         self.detector = detector
-        self.ramp = ramp
         self.read = read
         self.visibilities = None
+        self.rotate = rotate
 
         super().__init__(params)
 
@@ -34,7 +43,7 @@ class ResolvedAmigoModel(BaseModeller):
         """
         log_dist = self.params["log_distribution"][exp_key]
 
-        return 10**log_dist
+        return dlu.downsample(10**log_dist, self.source_oversample)
 
     def _get_pa_from_key(self, exp_key) -> Array:
         """

@@ -14,7 +14,7 @@ def build_resolved_model(
     cal_files,
     sci_files,
     state,
-    extra_priors: dict = {"log_distribution": None, "spectral_coeffs": None},
+    extra_priors: dict = {"log_distribution"},
     ramp_model=None,
     oversample=3,
     separate_fits: bool = False,
@@ -22,28 +22,11 @@ def build_resolved_model(
     cal_fit=amigo.model_fits.PointFit,
     sci_fit=None,
     optics=None,
-    Teff_cache="files/Teff_cache/",
     **model_kwargs,
 ):
     """
     Constructing the model.
     """
-
-    # if ramp_model is None:
-    #     if width is None or depth is None:
-    #         raise ValueError("If ramp_model is not provided, width and depth must be specified")
-
-    # if ramp_model is not None and (width is not None or depth is not None):
-    #     raise ValueError("If ramp_model is provided, width and depth must not be specified")
-
-    # # Ramp
-    # if ramp_model is None:
-    #     layers, pooling_layer = amigo.ramp_models.build_pooled_layers(
-    #         width=width,
-    #         depth=depth,
-    #         pooling="avg",
-    #     )
-    #     ramp_model = amigo.ramp_models.MinimalConv(layers, pooling_layer)
 
     if optics is None:
         optics = amigo.optical_models.AMIOptics(
@@ -60,9 +43,8 @@ def build_resolved_model(
     sci_fits = [sci_fit(file) for file in sci_files]
 
     # initialising model parameters
-    sci_params = amigo.files.initialise_params(sci_files, sci_fits, optics, Teff_cache=Teff_cache)
-    cal_params = amigo.files.initialise_params(cal_files, cal_fits, optics, Teff_cache=Teff_cache)
-    cal_params["Teffs"] = amigo.search_Teffs.get_Teffs(cal_files)
+    cal_params = amigo.files.initialise_params(cal_fits, optics)
+    sci_params = amigo.files.initialise_params(sci_fits, optics)
 
     # populating params with priors of extra parameters
     for param in extra_priors.keys():
@@ -74,19 +56,18 @@ def build_resolved_model(
     # combining calibrator and science
     params = misc.combine_param_dicts(cal_params, sci_params)
 
-    # setting up filters
-    filters = {}
-    for filt in list(set([fit.filter for fit in [*sci_fits, *cal_fits]])):
-        filters[filt] = amigo.misc.calc_throughput(filt, nwavels=9)
+    # # setting up filters
+    # filters = {}
+    # for filt in list(set([fit.filter for fit in [*sci_fits, *cal_fits]])):
+    #     filters[filt] = amigo.misc.calc_throughput(filt, nwavels=9)
 
     # initialising model
     model = modeller(
         params,
         optics=optics,
-        ramp=ramp_model,
         detector=amigo.detector_models.SUB80Detector(ramp_model=ramp_model, oversample=oversample),
         read=amigo.read_models.ReadModel(),
-        filters=filters,
+        # filters=filters,
         **model_kwargs,
     )
 

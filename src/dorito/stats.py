@@ -181,8 +181,7 @@ def regularised_loss_fn(model, exposure, args):
     # this is per exposure
 
     # regular likelihood term
-    # likelihood = amigo.stats.reg_loss_fn(model, exposure, args)
-    likelihood = np.nansum(amigo.stats.log_likelihood(exposure(model), exposure, args))
+    likelihood = np.nansum(amigo.stats.log_likelihood(exposure(model), exposure))
 
     # grabbing and exponentiating log distributions
     if not exposure.calibrator:
@@ -191,7 +190,7 @@ def regularised_loss_fn(model, exposure, args):
     else:
         prior = 0.0
 
-    return np.hypot(likelihood, prior)
+    return np.hypot(likelihood, prior), ()
 
 
 def prior_data_balance(model, exposure, args, coeff=1.0):
