@@ -51,7 +51,7 @@ def build_resolved_model(
         optics=optics,
         detector=amigo.detector_models.SUB80Detector(ramp_model=ramp_model, oversample=oversample),
         read=amigo.read_models.ReadModel(),
-        # **model_kwargs,
+        **model_kwargs,
     )
 
     model = amigo.misc.populate_from_state(model, state)
