@@ -18,12 +18,23 @@ class ResolvedAmigoModel(BaseModeller):
     # EMPTY CLASSES THAT GET THE BITS POPULATED WHEN YOU CALL MODEL AND THE THINGS THAT MAP TO THE RIGHT PLACE INTHE MODEL PARAMS IS DETERMIEND BY THE MODEL FITS WHICCH ALLOWS YOU THAT FINE GRAINED CONTROL
     # MODEL FITS JUST MAPS YOU FROM THE PARAMEERS DICTIONARIY
 
-    def __init__(self, source_size, exposures, optics, detector, read, rolls_dict=None):
+        def __init__(
+            self,
+            source_size,
+            params,
+            optics,
+            detector,
+            read,
+            rotate=False,
+            rolls_dict=None,
+            source_oversample=1.0,
+        ):
 
         self.optics = optics
         self.detector = detector
         self.read = read
-        self.params = None
+        self.rotate = rotate
+        self.source_oversample = source_oversample
 
         params = {}
         for exp in exposures:
@@ -34,6 +45,8 @@ class ResolvedAmigoModel(BaseModeller):
                 params[param][key] = value
         self.params = params
 
+        super().__init__(params)
+
     def _get_distribution_from_key(self, exp_key) -> Array:
         """
         Returns the normalised intensity distribution of the source
@@ -41,7 +54,7 @@ class ResolvedAmigoModel(BaseModeller):
         """
         log_dist = self.params["log_distribution"][exp_key]
 
-        return dlu.downsample(10**log_dist, self.source_oversample)
+        return 10**log_dist
 
     def _get_pa_from_key(self, exp_key) -> Array:
         """

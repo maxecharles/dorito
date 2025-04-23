@@ -73,8 +73,8 @@ def get_arcsec_extents(pixel_scale, shape):
 def plot_result(
     ax,
     array,
+    pixel_scale: float,
     roll_angle_degrees: float = 0.0,
-    pixel_scale: float = 0.0656 / 4,
     model=None,
     show_diff_lim: bool = True,
     cmap: str = "afmhot_10u",
@@ -86,6 +86,7 @@ def plot_result(
     vmin: float = 0.0,
     vmax: float = None,
     power=0.5,
+    ticks=[0.5, 0, -0.5],
 ):
     rotation_transform = mpl.transforms.Affine2D().rotate_deg(
         roll_angle_degrees
@@ -94,8 +95,8 @@ def plot_result(
     ax.set_facecolor(bg_color)  # Set the background colour
     ax.tick_params(direction="out")
     ax.set(
-        xticks=[0.5, 0, -0.5],
-        yticks=[-0.5, 0, 0.5],
+        xticks=ticks,
+        yticks=ticks[::-1],
         **axis_labels,
     )  # Set the axis labels
     if model is not None:

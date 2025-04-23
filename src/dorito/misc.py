@@ -65,7 +65,7 @@ def difflim_to_cov(model, exposure, factor):
 
 
 def get_pscale(model):
-    return model.optics.psf_pixel_scale / model.optics.oversample
+    return model.optics.psf_pixel_scale / model.optics.oversample / model.source_oversample
 
 
 def blur_distribution(array, model, exposure, extent=0.25, factor=1.0):

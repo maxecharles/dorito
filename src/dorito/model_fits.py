@@ -46,7 +46,7 @@ class ResolvedFit(ModelFit):
 
         return params
 
-    def get_distribution(self, model, rotate=False):
+    def get_distribution(self, model, rotate=False, downsample=True):
         """
         Returns the normalised intensity distribution of the source
         from the exposure object.
@@ -59,6 +59,9 @@ class ResolvedFit(ModelFit):
             else:
                 pa = rotate
             dist = dlu.rotate(dist, angle=-pa)
+
+        if downsample:
+            dist = dlu.downsample(dist, model.source_oversample)
 
         return dist
 

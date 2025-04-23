@@ -190,7 +190,8 @@ def regularised_loss_fn(model, exposure, args):
     else:
         prior = 0.0
 
-    return np.hypot(likelihood, prior), ()
+    # return np.hypot(likelihood, prior), ()
+    return likelihood + prior, ()
 
 
 def prior_data_balance(model, exposure, args, coeff=1.0):
