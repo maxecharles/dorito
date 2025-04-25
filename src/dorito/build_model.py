@@ -16,12 +16,12 @@ def build_resolved_model(
     source_size,
     rolls_dict=None,
     ramp_model=None,
-    oversample=3,
     separate_fits: bool = False,
     modeller=None,
     cal_fit=amigo.model_fits.PointFit,
     sci_fit=None,
     optics=None,
+    source_oversample: int = 3,
     **model_kwargs,
 ):
     """
@@ -32,7 +32,7 @@ def build_resolved_model(
         optics = amigo.optical_models.AMIOptics(
             radial_orders=4,
             distortion_orders=3,
-            oversample=oversample,
+            oversample=3 * source_oversample,
         )
 
     if modeller is None:
@@ -49,8 +49,9 @@ def build_resolved_model(
         fits,
         rolls_dict=rolls_dict,
         optics=optics,
-        detector=amigo.detector_models.SUB80Detector(ramp_model=ramp_model, oversample=oversample),
+        detector=amigo.detector_models.SUB80Detector(ramp_model=ramp_model),
         read=amigo.read_models.ReadModel(),
+        source_oversample=source_oversample,
         **model_kwargs,
     )
 

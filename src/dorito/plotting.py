@@ -16,7 +16,7 @@ def calc_parang(file):
     """
     Calculate the parallactic angle for a given file.
     """
-    return np.array(file["PRIMARY"].header["ROLL_REF"] - file["PRIMARY"].header["V3I_YANG"])
+    return np.array(file["PRIMARY"].header["ROLL_REF"])
 
 
 def plot_diffraction_limit(model, ax=None, OOP=False):

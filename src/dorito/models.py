@@ -27,7 +27,7 @@ class ResolvedAmigoModel(BaseModeller):
         read,
         rotate=False,
         rolls_dict=None,
-        source_oversample=1.0,
+        source_oversample=1,
     ):
 
         self.optics = optics

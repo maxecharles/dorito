@@ -3,7 +3,25 @@ from jax import Array, numpy as np, vmap
 import dLux.utils as dlu
 
 
-class ResolvedFit(ModelFit):
+class _ModelFit(ModelFit):
+    actual_dither: int
+
+    def __init__(self, file, **kwargs):
+        super().__init__(file, **kwargs)
+        self.actual_dither = int(file[0].header["PATT_NUM"])
+
+    def get_key(self, param):
+        match param:
+            case "aberrations":
+                return "_".join([self.filter, str(self.actual_dither)])
+        return super().get_key(param)
+
+
+class PointFit(_ModelFit):
+    pass
+
+
+class ResolvedFit(_ModelFit):
     """
     Model fit for resolved sources. Adds the log_distribution parameter to the
     model and uses it to calculate the intensity distribution of the source.
@@ -14,7 +32,7 @@ class ResolvedFit(ModelFit):
             case "log_distribution":
                 return self.filter
             case "position_angles":
-                return self.key
+                return self.filename
 
         return super().get_key(param)
 
@@ -40,13 +58,13 @@ class ResolvedFit(ModelFit):
         # position angles
         key = self.get_key("position_angles")
         if rolls_dict is not None:
-            params["position_angles"] = (key, rolls[key])
+            params["position_angles"] = (key, rolls_dict[key])
         else:
             params["position_angles"] = (key, np.array([0.0]))
 
         return params
 
-    def get_distribution(self, model, rotate=False, downsample=True):
+    def get_distribution(self, model, rotate=False):
         """
         Returns the normalised intensity distribution of the source
         from the exposure object.
@@ -60,24 +78,21 @@ class ResolvedFit(ModelFit):
                 pa = rotate
             dist = dlu.rotate(dist, angle=-pa)
 
-        if downsample:
-            dist = dlu.downsample(dist, model.source_oversample)
-
         return dist
 
-    def simulate(self, model, return_paths=False, return_bleed=False):
+    def simulate(self, model):
+
         psf = self.model_psf(model)
-        image = psf.convolve(
-            self.get_distribution(model, rotate=model.rotate),
-            method="fft",
-        )
+
+        # convolve source with PSF
+        image = psf.convolve(self.get_distribution(model, rotate=model.rotate), method="fft")
+
+        # downsample the image to the 3x oversample for the detector/ramp
+        image = image.downsample(model.source_oversample)
+
         illuminance = self.model_illuminance(image, model)
-        if return_paths:
-            ramp, latent_path = self.model_ramp(illuminance, model, return_paths=return_paths)
-            return self.model_read(ramp, model), latent_path
-        else:
-            ramp = self.model_ramp(illuminance, model)
-            return self.model_read(ramp, model)
+        ramp = self.model_ramp(illuminance, model)
+        return self.model_read(ramp, model)
 
 
 class DynamicResolvedFit(ResolvedFit):
