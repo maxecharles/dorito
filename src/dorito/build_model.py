@@ -18,7 +18,7 @@ def build_resolved_model(
     ramp_model=None,
     separate_fits: bool = False,
     modeller=None,
-    cal_fit=amigo.model_fits.PointFit,
+    cal_fit=None,
     sci_fit=None,
     optics=None,
     source_oversample: int = 3,
@@ -37,6 +37,12 @@ def build_resolved_model(
 
     if modeller is None:
         modeller = models.ResolvedAmigoModel
+
+    if cal_fit is None:
+        cal_fit = dorito.model_fits.PointFit
+
+    if sci_fit is None:
+        sci_fit = dorito.model_fits.ResolvedFit
 
     # Generate calibrator and science fits separately
     cal_fits = [cal_fit(file) for file in cal_files]

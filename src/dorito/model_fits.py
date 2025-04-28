@@ -10,16 +10,28 @@ class _ModelFit(ModelFit):
         super().__init__(file, **kwargs)
         self.actual_dither = int(file[0].header["PATT_NUM"])
 
-    def get_key(self, param):
-        match param:
-            case "aberrations":
-                return "_".join([self.filter, str(self.actual_dither)])
-        return super().get_key(param)
+    def simulate(self, model, return_bleed=False):
+        psf = self.model_psf(model)
+        psf = psf.downsample(model.source_oversample)
+        illuminance = self.model_illuminance(psf, model)
+        if return_bleed:
+            ramp, latent_path = self.model_ramp(illuminance, model, return_bleed=return_bleed)
+            return self.model_read(ramp, model), latent_path
+        else:
+            ramp = self.model_ramp(illuminance, model)
+            return self.model_read(ramp, model)
 
 
 class PointFit(_ModelFit):
     pass
 
+
+class UniqueAbFit(PointFit):
+    def get_key(self, param):
+    match param:
+        case "aberrations":
+            return "_".join([self.filter, str(self.actual_dither)])
+    return super().get_key(param)
 
 class ResolvedFit(_ModelFit):
     """
