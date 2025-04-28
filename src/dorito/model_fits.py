@@ -28,10 +28,11 @@ class PointFit(_ModelFit):
 
 class UniqueAbFit(PointFit):
     def get_key(self, param):
-    match param:
-        case "aberrations":
-            return "_".join([self.filter, str(self.actual_dither)])
-    return super().get_key(param)
+        match param:
+            case "aberrations":
+                return "_".join([self.filter, str(self.actual_dither)])
+        return super().get_key(param)
+
 
 class ResolvedFit(_ModelFit):
     """
