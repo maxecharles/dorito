@@ -6,7 +6,6 @@ def truncate_files(files, ngroups):
     """
     Truncate the ramp of files to only have ngroups.
     """
-    # TODO do one_on_fs here
 
     for file in files:
 
@@ -14,10 +13,11 @@ def truncate_files(files, ngroups):
         up_to = top_group - ngroups
 
         # files are mutable, so they will change in place
-        for attr in ["RAMP", "SLOPE", "RAMP_ERR", "RAMP_SUP", "SLOPE_SUP"]:
+        for attr in ["RAMP", "SLOPE", "RAMP_SUP", "SLOPE_SUP"]:
             file[attr].data = file[attr].data[:-up_to, ...]
 
-        file["SLOPE_ERR"].data = file["SLOPE_ERR"].data[:-up_to, :-up_to, ...]
+        for attr in ["RAMP_COV", "SLOPE_COV"]:
+            file[attr].data = file[attr].data[:-up_to, :-up_to, ...]
 
 
 def combine_param_dicts(cal_params, sci_params):
@@ -77,5 +77,5 @@ def blur_distribution(array, model, exposure, extent=0.25, factor=1.0):
 
     kernel = jsp.stats.multivariate_normal.pdf(jr.PRNGKey(0), pos, np.array(cov))
 
-    distribution = jsp.signal.convolve2d(array, kernel, mode="same")
+    distribution = jsp.signal.convolve2d(array, kernel, mode="same", method="fft")
     return distribution / distribution.sum()

@@ -118,15 +118,3 @@ class WaveletModel(ResolvedAmigoModel):
             read=read,
             filters=filters,
         )
-
-    def get_distribution(self, exposure) -> Array:
-        """
-        Returns the normalised intensity distribution of the source
-        from the exposure object.
-        """
-        return exposure.get_distribution(self)
-
-    # def __getattr__(self, key):
-    #     if hasattr(self.wavelets, key):
-    #         return getattr(self.wavelets, key)
-    #     return super().__getattr__(key)

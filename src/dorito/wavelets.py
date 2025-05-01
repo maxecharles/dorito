@@ -89,3 +89,19 @@ class Wavelets(zdx.WrapperHolder):
         # flattening the coefficients
         detail_leaves, _ = jtu.flatten(detail_tree)
         return np.concatenate([val.flatten() for val in detail_leaves])
+
+    def update_distribution(self, dist, normalise=True):
+        """
+        Updates the distribution of the wavelet coefficients.
+        """
+
+        # clipping and normalising the distribution
+        if normalise:
+            dist = np.clip(dist, 0)
+            dist = dist / dist.sum()
+
+        # converting to wavelet coefficients
+        approx, detail_tree = self.wavelet_transform(dist)
+        details = self.flatten_details(detail_tree)
+
+        return self.set(["approx", "values"], [approx, details])

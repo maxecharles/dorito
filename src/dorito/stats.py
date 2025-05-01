@@ -87,10 +87,10 @@ def TV_loss(arr):
     Total variation loss function.
     """
     pad_arr = np.pad(arr, 2)  # padding
-    diff_y = np.abs(pad_arr[1:, :] - pad_arr[:-1, :]).sum()
-    diff_x = np.abs(pad_arr[:, 1:] - pad_arr[:, :-1]).sum()
-    return np.hypot(diff_x, diff_y)
-    # return diff_x + diff_y
+    dx = np.diff(pad_arr[0:-1, :])
+    dy = np.diff(pad_arr[:, 0:-1])
+    return dx.sum() + dy.sum()
+    # return np.sqrt(dx[:, :-1] ** 2 + dy[:-1, :] ** 2).sum()
 
 
 def TSV_loss(arr):
@@ -98,9 +98,9 @@ def TSV_loss(arr):
     Quadratic variation loss function.
     """
     pad_arr = np.pad(arr, 2)  # padding
-    diff_y = np.square(pad_arr[1:, :] - pad_arr[:-1, :]).sum()
-    diff_x = np.square(pad_arr[:, 1:] - pad_arr[:, :-1]).sum()
-    return diff_x + diff_y
+    dx = np.diff(pad_arr[0:-1, :])
+    dy = np.diff(pad_arr[:, 0:-1])
+    return np.sum(dx**2 + dy**2)
 
 
 def ME_loss(arr, eps=1e-16):
@@ -156,15 +156,6 @@ def TSV_with_star(arr, star_idx=None):
     return TSV_loss(interp_star_pixel(nanpix_arr, star_idx))
 
 
-reg_func_dict = {
-    "L1": L1_on_wavelets,
-    "L2": L2,
-    "TV": TV,
-    "TSV": TSV,
-    "ME": ME,
-}
-
-
 def apply_regularisers(model, exposure, args):
     # creating a list of regularisation functions and regularisation hyperparameters
     fn_list = [args["reg_func_dict"][reg] for reg in args["reg_dict"].keys()]
@@ -181,7 +172,7 @@ def calc_loglike_prior(model, exposure, args):
     # this is per exposure
 
     # regular likelihood term
-    likelihood = -np.nansum(amigo.stats.log_likelihood(exposure(model), exposure))
+    likelihood = -np.nanmean(amigo.stats.log_likelihood(exposure(model), exposure))
 
     # grabbing and exponentiating log distributions
     if not exposure.calibrator:

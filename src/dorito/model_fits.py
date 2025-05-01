@@ -34,11 +34,17 @@ class UniqueAbFit(PointFit):
         return super().get_key(param)
 
 
-class ResolvedFit(_ModelFit):
+class ResolvedFit(PointFit):
     """
     Model fit for resolved sources. Adds the log_distribution parameter to the
     model and uses it to calculate the intensity distribution of the source.
     """
+
+    unique_abs: bool = False
+
+    def __init__(self, file, unique_abs=False, **kwargs):
+        super().__init__(file, **kwargs)
+        self.unique_abs = unique_abs
 
     def get_key(self, param):
         match param:
@@ -46,6 +52,11 @@ class ResolvedFit(_ModelFit):
                 return self.filter
             case "position_angles":
                 return self.filename
+            case "aberrations":
+                if self.unique_abs:
+                    return "_".join([self.filter, str(self.actual_dither)])
+                else:
+                    return self.filter
 
         return super().get_key(param)
 

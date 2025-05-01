@@ -17,7 +17,7 @@ def build_resolved_model(
     rolls_dict=None,
     ramp_model=None,
     separate_fits: bool = False,
-    modeller=None,
+    # modeller=None,
     cal_fit=None,
     sci_fit=None,
     optics=None,
@@ -35,8 +35,8 @@ def build_resolved_model(
             oversample=3 * source_oversample,
         )
 
-    if modeller is None:
-        modeller = models.ResolvedAmigoModel
+    # if modeller is None:
+    #     modeller = models.ResolvedAmigoModel
 
     if cal_fit is None:
         cal_fit = dorito.model_fits.PointFit
