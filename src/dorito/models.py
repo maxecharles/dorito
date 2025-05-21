@@ -121,7 +121,7 @@ class WaveletModel(ResolvedAmigoModel):
         )
 
 
-class ResolvedSickoModel(amigo.core_models.BaseModeller):
+class ResolvedSickoModel(BaseModeller):
 
     uv_npixels: int
     uv_pscale: float
@@ -131,7 +131,7 @@ class ResolvedSickoModel(amigo.core_models.BaseModeller):
     def __init__(
         self,
         ois: list,
-        distribution: np.ndarray,
+        distribution: Array,
         uv_npixels: int,
         uv_pscale: float,
         oversample: float = 1.0,
