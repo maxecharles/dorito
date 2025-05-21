@@ -98,8 +98,8 @@ def TSV_loss(arr):
     Quadratic variation loss function.
     """
     pad_arr = np.pad(arr, 2)  # padding
-    dx = np.diff(pad_arr[0:-1, :])
-    dy = np.diff(pad_arr[:, 0:-1])
+    dx = np.diff(pad_arr[0:-1, :], axis=1)
+    dy = np.diff(pad_arr[:, 0:-1], axis=0)
     return np.sum(dx**2 + dy**2)
 
 

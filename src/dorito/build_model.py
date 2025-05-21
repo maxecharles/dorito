@@ -21,7 +21,8 @@ def build_resolved_model(
     cal_fit=None,
     sci_fit=None,
     optics=None,
-    source_oversample: int = 3,
+    source_oversample: int = 1,
+    modeller=None,
     **model_kwargs,
 ):
     """
@@ -30,9 +31,9 @@ def build_resolved_model(
 
     if optics is None:
         optics = amigo.optical_models.AMIOptics(
-            radial_orders=4,
-            distortion_orders=3,
-            oversample=3 * source_oversample,
+            # radial_orders=4,
+            # distortion_orders=3,
+            # oversample=3 * source_oversample,
         )
 
     # if modeller is None:
@@ -50,7 +51,7 @@ def build_resolved_model(
     fits = [*cal_fits, *sci_fits]
 
     # initialising model
-    model = models.ResolvedAmigoModel(
+    model = modeller(
         source_size,
         fits,
         rolls_dict=rolls_dict,

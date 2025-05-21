@@ -77,5 +77,10 @@ def blur_distribution(array, model, exposure, extent=0.25, factor=1.0):
 
     kernel = jsp.stats.multivariate_normal.pdf(jr.PRNGKey(0), pos, np.array(cov))
 
-    distribution = jsp.signal.convolve2d(array, kernel, mode="same", method="fft")
+    distribution = jsp.signal.convolve2d(
+        array,
+        kernel,
+        mode="same",
+        # method="fft",
+    )
     return distribution / distribution.sum()

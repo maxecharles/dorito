@@ -72,9 +72,6 @@ class ResolvedAmigoModel(BaseModeller):
         """
         return self._get_distribution_from_key(exposure.get_key("log_distribution"))
 
-    # def model(self, fit, **kwargs):
-    #     return fit(self, **kwargs)
-
     def __getattr__(self, key):
         if key in self.params:
             return self.params[key]
@@ -100,21 +97,69 @@ class WaveletModel(ResolvedAmigoModel):
 
     def __init__(
         self,
-        params,
+        source_size,
+        exposures,
         optics,
-        ramp,
         detector,
         read,
-        filters,
-        wavelets,
+        rotate=False,
+        rolls_dict=None,
+        source_oversample=1,
+        wavelets=None,
     ):
         self.wavelets = wavelets
 
         super().__init__(
-            params=params,
-            optics=optics,
-            ramp=ramp,
-            detector=detector,
-            read=read,
-            filters=filters,
+            source_size,
+            exposures,
+            optics,
+            detector,
+            read,
+            rotate=rotate,
+            rolls_dict=rolls_dict,
+            source_oversample=source_oversample,
         )
+
+
+class ResolvedSickoModel(amigo.core_models.BaseModeller):
+
+    uv_npixels: int
+    uv_pscale: float
+    oversample: float
+    psf_pixel_scale: float
+
+    def __init__(
+        self,
+        ois: list,
+        distribution: np.ndarray,
+        uv_npixels: int,
+        uv_pscale: float,
+        oversample: float = 1.0,
+        psf_pixel_scale: float = 0.065524085,  # arcsec/pixel
+    ):
+
+        self.uv_npixels = uv_npixels
+        self.oversample = oversample
+        self.uv_pscale = uv_pscale
+        self.psf_pixel_scale = psf_pixel_scale
+
+        params = {}
+        for oi in ois:
+            param_dict = oi.initialise_params(self, distribution)
+            for param, (key, value) in param_dict.items():
+                if param not in params.keys():
+                    params[param] = {}
+                params[param][key] = value
+
+        super().__init__(params)
+
+    @property
+    def pscale_in(self):
+        return dlu.arcsec2rad(self.psf_pixel_scale / self.oversample)
+
+    def get_distribution(self, exposure):
+        """
+        Get the distribution from the exposure
+        """
+        log_dist = self.params["log_dist"][exposure.get_key("log_dist")]
+        return 10**log_dist

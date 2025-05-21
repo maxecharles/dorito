@@ -1,6 +1,8 @@
 from amigo.model_fits import ModelFit
 from jax import Array, numpy as np, vmap
 import dLux.utils as dlu
+import equinox as eqx
+import zodiax as zdx
 
 
 class _ModelFit(ModelFit):
@@ -182,3 +184,210 @@ class WaveletFit(ResolvedFit):
     #     image = self.model_detector(image, model, exposure)
     #     ramp = self.model_ramp(image, model, exposure)
     #     return self.model_read(ramp, model, exposure)
+
+
+class AmigoOIData(zdx.Base):
+    # Coordinates
+    u: np.ndarray
+    v: np.ndarray
+    wavel: np.ndarray
+    parang: np.ndarray
+
+    # Latent Kernel Visibilities
+    vis: np.ndarray
+    d_vis: np.ndarray
+
+    # Latent Kernel Phases
+    phi: np.ndarray
+    d_phi: np.ndarray
+
+    # Latent space projection matrices
+    vis_mat: np.ndarray  # Latent -> Pixel
+    phi_mat: np.ndarray  # Latent -> Pixel
+
+    def __init__(self, oi_data):
+        """
+        Default should have vis, phi as their _latent_ values
+        """
+        self.u = -np.array(oi_data["u"], dtype=float)
+        self.v = -np.array(oi_data["v"], dtype=float)
+        self.wavel = np.array(oi_data["wavel"], dtype=float)
+        self.parang = np.array(oi_data["parang"], dtype=float)
+
+        # Visibilities
+        self.vis = np.array(oi_data["vis"], dtype=float)
+        self.phi = np.array(oi_data["phi"], dtype=float)
+
+        # Uncertainties
+        self.d_phi = np.diag(oi_data["phi_cov"]) ** 0.5
+        self.d_vis = np.diag(oi_data["vis_cov"]) ** 0.5
+
+        pix_to_latent = np.linalg.pinv(np.array(oi_data["vis_mat"], dtype=float))
+        latent_to_kernel = np.array(oi_data["K_vis_mat"], dtype=float)
+        latent_to_ortho = np.array(oi_data["K_vis_proj"], dtype=float)
+        proj_mat = np.dot(pix_to_latent, latent_to_kernel.T)
+        proj_mat = np.dot(latent_to_ortho, proj_mat.T)
+        self.vis_mat = proj_mat.T
+
+        pix_to_latent = np.linalg.pinv(np.array(oi_data["phi_mat"], dtype=float))
+        latent_to_kernel = np.array(oi_data["K_phi_mat"], dtype=float)
+        latent_to_ortho = np.array(oi_data["K_phi_proj"], dtype=float)
+        proj_mat = np.dot(pix_to_latent, latent_to_kernel.T)
+        proj_mat = np.dot(latent_to_ortho, proj_mat.T)
+        self.phi_mat = proj_mat.T
+
+    def flatten_data(self):
+        """Flatten closure phases and uncertainties."""
+        vis_vec = np.concatenate([self.vis, self.phi])
+        vis_err = np.concatenate([self.d_vis, self.d_phi])
+        return vis_vec, vis_err
+
+    def flatten_model(self, cvis):
+        """
+        cvis: complex visibilities from model
+        Flatten model visibilities and phases.
+        """
+        # Project the visibilities to the latent
+        log_cvis = np.log(cvis)
+        log_vis, phi = log_cvis.real, log_cvis.imag
+
+        vis = np.dot(log_vis, self.vis_mat)
+        phi = np.dot(phi, self.phi_mat)
+        return np.concatenate([vis, phi])
+
+    def model(self, model_object):
+        """
+        Compute the model visibilities and phases for the given model object.
+        """
+        cvis = model_object.model(self.u, self.v, self.wavel)
+        return self.flatten_model(cvis)
+
+    # Overwrite this, it was a mistake from the beginning
+    def __repr__(self):
+        return eqx.Module.__repr__(self)
+
+
+class ResolvedOIFit(AmigoOIData):
+    """
+    Amigo OI Fit class
+    """
+
+    key: str
+    filter: str
+
+    def __init__(self, oi_data, key):
+        self.key = key
+        self.filter = key
+        super().__init__(oi_data)
+
+    def initialise_params(self, model, distribution):
+        params = {}
+
+        # centre = distribution.shape[0] // 2
+        # centre_val = distribution[centre, centre]
+        # distribution /= centre_val
+
+        distribution /= distribution.sum()
+
+        params["log_dist"] = self.get_key("log_dist"), np.log10(distribution)
+
+        params["base_uv"] = self.get_key("base_uv"), self.get_base_uv(model, distribution.shape[0])
+
+        return params
+
+    def get_base_uv(self, model, n_pix):
+        """
+        Get the base uv for normalisation
+        """
+        ind = n_pix // 2
+        base_dist = np.zeros((n_pix, n_pix)).at[ind, ind].set(1.0)
+
+        # base uv for normalisation
+        base_uv = self.to_otf(model, base_dist)
+        return base_uv
+
+    def to_otf(self, model, distribution):
+
+        # distribution = np.pad(distribution, 5 * distribution.shape[0])
+
+        return dlu.MFT(
+            phasor=distribution + 0j,
+            wavelength=self.wavel,
+            pixel_scale_in=model.pscale_in,
+            npixels_out=model.uv_npixels,
+            pixel_scale_out=model.uv_pscale,
+        )
+
+    def dirty_image(self, model, npix):
+
+        log_vis = np.dot(self.vis, np.linalg.pinv(self.vis_mat))
+        phase = np.dot(self.phi, np.linalg.pinv(self.phi_mat))
+        vis_im, phase_im = amigo.vis_models.vis_to_im(log_vis, phase, (51, 51))
+
+        uv = np.exp(vis_im + 1j * phase_im)
+
+        return dlu.MFT(
+            phasor=uv,
+            wavelength=self.wavel,
+            pixel_scale_in=model.uv_pscale,
+            npixels_out=npix,
+            pixel_scale_out=model.pscale_in,
+            inverse=True,
+        )
+
+    def to_logvis(self, model, distribution):
+        """
+        Get the log visibilities
+        """
+        # Getting regular visibilities
+        uv = self.to_otf(model, distribution)
+
+        # Normalise the visibilities, take log and get amp and phase
+        uv /= model.params["base_uv"][self.get_key("base_uv")]
+        uv = dlu.downsample(uv, 2, mean=True)
+        vis = uv.flatten()[: uv.size // 2]
+        vis = np.log(vis)
+        return vis.real, vis.imag
+
+    def get_key(self, param):
+
+        match param:
+            case "log_dist":
+                return self.key
+            case "base_uv":
+                return self.key
+
+    def map_param(self, param):
+        """
+        The `key` argument will return only the _key_ extension of the parameter path,
+        which is required for object initialisation.
+        """
+
+        # Map the appropriate parameter to the correct key
+        if param in ["log_dist", "base_uv"]:
+            return f"{param}.{self.get_key(param)}"
+
+        # Else its global
+        return param
+
+    def model_sicko(self, model, distribution):
+
+        # Getting log visibilities
+        log_amp, phase = self.to_logvis(model, distribution)
+
+        # Transform to the sicko basis
+        sicko_amp = np.dot(log_amp, self.vis_mat)
+        sicko_phase = np.dot(phase, self.phi_mat)
+
+        return sicko_amp, sicko_phase
+        # return np.concatenate([sicko_amp, sicko_phase])
+        # return np.vstack([sicko_amp, sicko_phase])
+
+    def __call__(self, model):
+        """
+        Call the model with the given parameters.
+        """
+        # NOTE: Distribution must be odd number of pixels in one axis
+        distribution = 10 ** model.params["log_dist"][self.get_key("log_dist")]
+
+        return self.model_sicko(model, distribution=distribution)
