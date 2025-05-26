@@ -155,6 +155,9 @@ class ResolvedSickoModel(BaseModeller):
 
     @property
     def pscale_in(self):
+        """
+        In radians per pixel.
+        """
         return dlu.arcsec2rad(self.psf_pixel_scale / self.oversample)
 
     def get_distribution(self, exposure):
