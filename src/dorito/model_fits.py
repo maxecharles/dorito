@@ -195,11 +195,17 @@ class ResolvedOIFit(AmigoOIData):
     """
 
     key: str
-    # filter: str
+    filter: str
 
-    def __init__(self, oi_data, key):
+    def __init__(self, oi_data, key, filter):
         self.key = key
-        # self.filter = filter
+
+        if filter not in ["F380M", "F430M", "F480M"]:
+            raise ValueError(
+                f"Filter {filter} is not supported. Use 'F380M', 'F430M', or 'F480M'."
+            )
+
+        self.filter = filter
         super().__init__(oi_data)
 
     def initialise_params(self, model, distribution):
@@ -221,9 +227,9 @@ class ResolvedOIFit(AmigoOIData):
 
         match param:
             case "log_dist":
-                return self.key
+                return self.filter
             case "base_uv":
-                return self.key
+                return self.filter
 
     def map_param(self, param):
         """
