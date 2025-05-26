@@ -1,6 +1,7 @@
 from amigo.model_fits import ModelFit
 from amigo.vis_models import vis_to_im
 from amigo.vis_analysis import AmigoOIData
+from amigo.misc import interp
 from jax import Array, numpy as np, vmap
 import dLux.utils as dlu
 import equinox as eqx
@@ -330,7 +331,7 @@ class ResolvedOIFit(AmigoOIData):
         knots = dlu.pixel_coords(distribution.shape[0], 1.0)
         samps = dlu.rotate_coords(knots, -dlu.deg2rad(self.parang))
 
-        distribution = amigo.misc.interp(
+        distribution = interp(
             distribution,
             knots,
             samps,
