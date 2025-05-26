@@ -328,7 +328,7 @@ class ResolvedOIFit(AmigoOIData):
 
         # rotate distribution by the parallactic angle
         knots = dlu.pixel_coords(distribution.shape[0], 1.0)
-        samps = dlu.rotate_coords(knots, -dlu.deg2rad(oi.parang))
+        samps = dlu.rotate_coords(knots, -dlu.deg2rad(self.parang))
 
         distribution = amigo.misc.interp(
             distribution,
