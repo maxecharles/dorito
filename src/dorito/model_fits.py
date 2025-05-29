@@ -294,7 +294,27 @@ class ResolvedOIFit(AmigoOIData):
         # return np.concatenate([sicko_amp, sicko_phase])
         # return np.vstack([sicko_amp, sicko_phase])
 
-    def dirty_image(self, model, npix=None):
+    def rotate(self, model, distribution, clip=True):
+        """
+        Rotate the distribution by the parallactic angle.
+        """
+        knots = dlu.pixel_coords(distribution.shape[0], 1.0)
+        samps = dlu.rotate_coords(knots, -dlu.deg2rad(self.parang))
+
+        distribution = interp(
+            distribution,
+            knots,
+            samps,
+            method="cubic",
+        )
+
+        # clipping to enforce positivity
+        if clip:
+            return np.clip(distribution, min=0.0, max=None)
+
+        return distribution
+
+    def dirty_image(self, model, npix=None, rotate=True):
         """
         Get the dirty image via MFT.
         """
@@ -323,28 +343,22 @@ class ResolvedOIFit(AmigoOIData):
         # Taking amplitudes
         dirty_image = np.abs(dirty_image)
 
+        if rotate:
+            dirty_image = self.rotate(model, dirty_image)
+
         # Normalise the image
         return dirty_image / dirty_image.sum()
 
-    def __call__(self, model):
+    def __call__(self, model, rotate=True):
         """
         Call the model with the given parameters.
         """
         # NOTE: Distribution must be odd number of pixels in one axis
         distribution = model.get_distribution(self)
 
-        # rotate distribution by the parallactic angle
-        knots = dlu.pixel_coords(distribution.shape[0], 1.0)
-        samps = dlu.rotate_coords(knots, -dlu.deg2rad(self.parang))
+        if rotate:
+            distribution = self.rotate(model, distribution)
 
-        distribution = interp(
-            distribution,
-            knots,
-            samps,
-            method="cubic",
-        )
-
-        # clipping to enforce positivity
-        distribution = np.clip(distribution, min=0.0, max=None)
+        # distribution /= distribution.sum()  # Normalise the distribution
 
         return self.model_sicko(model, distribution=distribution)
