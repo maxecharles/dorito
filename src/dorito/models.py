@@ -7,16 +7,19 @@ import dLux.utils as dlu
 
 
 class ResolvedAmigoModel(BaseModeller):
-    # filters: dict
+    """
+    A class for resolved source models in the AMIGO framework.
+    This class is designed to handle the parameters and distributions
+    of resolved sources, including their optical properties and detector characteristics.
+    It inherits from BaseModeller and provides methods to retrieve source distributions
+    and position angles based on exposure keys.
+    """
+
     optics: AMIOptics
     detector: None
     read: None
     rotate: bool = False
     source_oversample: int = 1
-
-    # TODO WAVELETS IS ONE OF THESE THINGS
-    # EMPTY CLASSES THAT GET THE BITS POPULATED WHEN YOU CALL MODEL AND THE THINGS THAT MAP TO THE RIGHT PLACE INTHE MODEL PARAMS IS DETERMIEND BY THE MODEL FITS WHICCH ALLOWS YOU THAT FINE GRAINED CONTROL
-    # MODEL FITS JUST MAPS YOU FROM THE PARAMEERS DICTIONARIY
 
     def __init__(
         self,
@@ -29,6 +32,18 @@ class ResolvedAmigoModel(BaseModeller):
         rolls_dict=None,
         source_oversample=1,
     ):
+        """
+        Initialises the ResolvedAmigoModel with the given parameters.
+        Args:
+            source_size (float): Size of the source in arcseconds.
+            exposures (list): List of exposure objects to initialise parameters to.
+            optics (AMIOptics): Optical model for the AMIGO instrument.
+            detector: Detector model for the AMIGO instrument.
+            read: Readout model for the AMIGO instrument.
+            rotate (bool): Whether to rotate the source distribution.
+            rolls_dict (dict): Dictionary containing roll angles for exposures.
+            source_oversample (int): Oversampling factor for the source distribution.
+        """
 
         self.optics = optics
         self.detector = detector
@@ -36,6 +51,7 @@ class ResolvedAmigoModel(BaseModeller):
         self.rotate = rotate
         self.source_oversample = source_oversample
 
+        # Initialising the parameters for each exposure
         params = {}
         for exp in exposures:
             param_dict = exp.initialise_params(optics, source_size, rolls_dict)
@@ -92,6 +108,13 @@ class ResolvedAmigoModel(BaseModeller):
 
 
 class WaveletModel(ResolvedAmigoModel):
+    """
+    A class for resolved source models in the AMIGO framework that includes wavelet transforms.
+    This class extends the ResolvedAmigoModel to incorporate wavelet transforms
+    for more complex source distributions.
+    It inherits from BaseModeller and provides methods to retrieve source distributions
+    and position angles based on exposure keys, while also handling wavelet transforms.
+    """
 
     wavelets: None
 
@@ -121,7 +144,11 @@ class WaveletModel(ResolvedAmigoModel):
         )
 
 
-class ResolvedSickoModel(BaseModeller):
+class ResolvedDiscoModel(BaseModeller):
+    """
+    A class to hold the parameters of a resolved source model to be used in fitting
+    to DISCO data.
+    """
 
     uv_npixels: int
     uv_pscale: float
@@ -156,13 +183,18 @@ class ResolvedSickoModel(BaseModeller):
     @property
     def pscale_in(self):
         """
-        In radians per pixel.
+        The pixel scale of the image plane, in radians per pixel.
         """
         return dlu.arcsec2rad(self.psf_pixel_scale / self.oversample)
 
     def get_distribution(self, exposure):
         """
-        Get the distribution from the exposure
+        Get the distribution from the exposure.
+
+        Args:
+            exposure: The exposure object containing the distribution key.
+        Returns:
+            Array: The intensity distribution of the source.
         """
         log_dist = self.params["log_dist"][exposure.get_key("log_dist")]
         return 10**log_dist

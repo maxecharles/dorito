@@ -2,54 +2,14 @@ from amigo.model_fits import ModelFit
 from amigo.vis_models import vis_to_im
 from amigo.vis_analysis import AmigoOIData
 from amigo.misc import interp
-from jax import Array, numpy as np, vmap
+from jax import Array, numpy as np
 import dLux.utils as dlu
-import equinox as eqx
-import zodiax as zdx
 
 
-class _ModelFit(ModelFit):
-    actual_dither: int
-
-    def __init__(self, file, **kwargs):
-        super().__init__(file, **kwargs)
-        self.actual_dither = int(file[0].header["PATT_NUM"])
-
-    def simulate(self, model, return_bleed=False):
-        psf = self.model_psf(model)
-        psf = psf.downsample(model.source_oversample)
-        illuminance = self.model_illuminance(psf, model)
-        if return_bleed:
-            ramp, latent_path = self.model_ramp(illuminance, model, return_bleed=return_bleed)
-            return self.model_read(ramp, model), latent_path
-        else:
-            ramp = self.model_ramp(illuminance, model)
-            return self.model_read(ramp, model)
-
-
-class PointFit(_ModelFit):
-    pass
-
-
-class UniqueAbFit(PointFit):
-    def get_key(self, param):
-        match param:
-            case "aberrations":
-                return "_".join([self.filter, str(self.actual_dither)])
-        return super().get_key(param)
-
-
-class ResolvedFit(PointFit):
+class ResolvedFit(ModelFit):
     """
-    Model fit for resolved sources. Adds the log_distribution parameter to the
-    model and uses it to calculate the intensity distribution of the source.
+    Model fit for resolved sources. This adds the log distribution and position angles parameters.
     """
-
-    unique_abs: bool = False
-
-    def __init__(self, file, unique_abs=False, **kwargs):
-        super().__init__(file, **kwargs)
-        self.unique_abs = unique_abs
 
     def get_key(self, param):
         match param:
@@ -57,11 +17,6 @@ class ResolvedFit(PointFit):
                 return self.filter
             case "position_angles":
                 return self.filename
-            case "aberrations":
-                if self.unique_abs:
-                    return "_".join([self.filter, str(self.actual_dither)])
-                else:
-                    return self.filter
 
         return super().get_key(param)
 
@@ -75,6 +30,20 @@ class ResolvedFit(PointFit):
         return super().map_param(param)
 
     def initialise_params(self, optics, source_size, rolls_dict=None):
+        """
+        Initialise the parameters for the resolved source model fit.
+        The log distribution is set to a uniform distribution specified by the source size.
+        The position angles are set to the roll angles from the rolls_dict if provided,
+        otherwise defaulting to 0.0.
+
+        Args:
+            optics: The optics object (to pass to the parent class).
+            source_size: The size of the source distribution (assumed square).
+            rolls_dict: Optional dictionary containing roll angles for each exposure.
+
+        Returns:
+            params: A dictionary containing the initialised parameters for the model fit.
+        """
 
         params = super().initialise_params(optics)
 
@@ -96,10 +65,21 @@ class ResolvedFit(PointFit):
     def get_distribution(self, model, rotate=False):
         """
         Returns the normalised intensity distribution of the source
-        from the exposure object.
+        from the exposure (not logged).
+
+        Args:
+            model: The model object containing the parameters.
+            rotate: If True, rotates the distribution by the parallactic angle.
+                    If a float, rotates by that (-'ve) angle in radians.
+
+        Returns:
+            Array: The normalised intensity distribution of the source.
         """
+
+        # grabbing the distribution from the model
         dist = model._get_distribution_from_key(self.get_key("log_distribution"))
 
+        # rotating the distribution if required
         if rotate:
             if type(rotate) == bool:
                 pa = model._get_pa_from_key(self.get_key("position_angles"))
@@ -110,6 +90,14 @@ class ResolvedFit(PointFit):
         return dist
 
     def simulate(self, model):
+        """
+        Simulate the ramp. Identical to the parent class, but convolves the source with the PSF.
+
+        Args:
+            model: The model object containing the parameters.
+        Returns:
+            Array: The simulated ramp.
+        """
 
         psf = self.model_psf(model)
 
@@ -124,21 +112,39 @@ class ResolvedFit(PointFit):
         return self.model_read(ramp, model)
 
 
-class DynamicResolvedFit(ResolvedFit):
-    """
-    Model fit for resolved sources where each exposure has a different
-    intensity distribution.
-    """
+# class DynamicResolvedFit(ResolvedFit):
+#     """
+#     Model fit for resolved sources where each exposure has a different
+#     intensity distribution.
+#     """
 
-    def get_key(self, param):
-        match param:
-            case "log_distribution":
-                return "_".join([self.key, self.filter])
+#     def get_key(self, param):
+#         match param:
+#             case "log_distribution":
+#                 return "_".join([self.key, self.filter])
 
-        return super().get_key(param)
+#         return super().get_key(param)
 
 
 class WaveletFit(ResolvedFit):
+
+    def get_key(self, param):
+        match param:
+            case "approx":
+                return self.filter
+            case "details":
+                return self.filter
+
+        return super().get_key(param)
+
+    def map_param(self, param):
+        match param:
+            case "approx":
+                return f"{param}.{self.get_key(param)}"
+            case "details":
+                return f"{param}.{self.get_key(param)}"
+
+        return super().map_param(param)
 
     def update_wavelets(self, model):
         """
@@ -163,35 +169,18 @@ class WaveletFit(ResolvedFit):
         wavelets = self.update_wavelets(model)
         return wavelets.distribution
 
-    def get_key(self, param):
-        match param:
-            case "approx":
-                return self.filter
-            case "details":
-                return self.filter
 
-        return super().get_key(param)
-
-    def map_param(self, param):
-        match param:
-            case "approx":
-                return f"{param}.{self.get_key(param)}"
-            case "details":
-                return f"{param}.{self.get_key(param)}"
-
-        return super().map_param(param)
-
-    # def __call__(self, model, exposure):
-    #     psf = self.model_psf(model, exposure)
-    #     image = psf.convolve(model.get_distribution(exposure), method="fft")
-    #     image = self.model_detector(image, model, exposure)
-    #     ramp = self.model_ramp(image, model, exposure)
-    #     return self.model_read(ramp, model, exposure)
-
-
-class ResolvedOIFit(AmigoOIData):
+class OIFit(AmigoOIData):
     """
-    Amigo OI Fit class
+    Repurposing the AmigoOIData class to act as an Exposure/ModelFit amigo class.
+    This is useful for fitting to this OI data.
+    It requires a key and filter to be specified, which are used to identify the
+    parameters in the model.
+
+    Args:
+        oi_data: The OI data to fit.
+        key: The key to identify the parameters in the model.
+        filter: The filter to use for the OI data. Must be one of "F380M", "F430M", or "F480M".
     """
 
     key: str
@@ -209,16 +198,40 @@ class ResolvedOIFit(AmigoOIData):
         super().__init__(oi_data)
 
     def initialise_params(self, model, distribution):
-        params = {}
+        pass
 
-        # centre = distribution.shape[0] // 2
-        # centre_val = distribution[centre, centre]
-        # distribution /= centre_val
+    def get_key(self, param):
+        pass
 
-        distribution /= distribution.sum()
+    def map_param(self, param):
+        pass
+
+
+class ResolvedOIFit(OIFit):
+    """
+    Extending the OIFit class to include methods for handling resolved source fits.
+    """
+
+    def initialise_params(self, model, distribution):
+        """
+        Initialise the parameters for the resolved OI fit.
+        This method sets up the log distribution and base UV parameters.
+        The log distribution is the logarithm of the resolved source distribution,
+        normalised to sum to 1. The base UV is the Fourier transform of a delta function
+        at the centre of the distribution, which is used for normalisation.
+
+        Args:
+            model: The model object containing the parameters.
+            distribution: The distribution of the resolved source.
+
+        Returns:
+            params: A dictionary containing the initialised parameters for the model fit.
+        """
+
+        params = {}  # Initialise an empty dictionary for parameters
+        distribution /= distribution.sum()  # normalise the distribution
 
         params["log_dist"] = self.get_key("log_dist"), np.log10(distribution)
-
         params["base_uv"] = self.get_key("base_uv"), self.get_base_uv(model, distribution.shape[0])
 
         return params
@@ -229,7 +242,7 @@ class ResolvedOIFit(AmigoOIData):
             case "log_dist":
                 return self.filter
             case "base_uv":
-                return self.filter
+                return self.filter  # this is probably unnecessary
 
     def map_param(self, param):
         """
@@ -247,6 +260,12 @@ class ResolvedOIFit(AmigoOIData):
     def get_base_uv(self, model, n_pix):
         """
         Get the base uv for normalisation
+
+        Args:
+            model: The model object containing the parameters.
+            n_pix: The number of pixels in one axis of the distribution.
+        Returns:
+            Array: The base UV for normalisation, which is the Fourier transform of a delta function.
         """
         ind = n_pix // 2
         base_dist = np.zeros((n_pix, n_pix)).at[ind, ind].set(1.0)
@@ -256,12 +275,20 @@ class ResolvedOIFit(AmigoOIData):
         return base_uv
 
     def to_otf(self, model, distribution):
-
-        # distribution = np.pad(distribution, 5 * distribution.shape[0])
+        """
+        Transform the distribution to the OTF plane (Optical Transfer Function).
+        This method performs a Matrix Fourier Transform of the distribution and returns the
+        resulting visibilities in the OTF format.
+        Args:
+            model: The model object containing the parameters.
+            distribution: The distribution of the resolved source.
+        Returns:
+            dlu.MFT: The OTF visibilities as a dLux MFT object.
+        """
 
         return dlu.MFT(
             phasor=distribution + 0j,
-            wavelength=self.wavel,  # If focal length is None this doesn't do anything
+            wavelength=self.wavel,
             pixel_scale_in=model.pscale_in,
             npixels_out=model.uv_npixels,
             pixel_scale_out=model.uv_pscale,
@@ -269,7 +296,15 @@ class ResolvedOIFit(AmigoOIData):
 
     def to_logvis(self, model, distribution):
         """
-        Get the log visibilities
+        Fetch the log visibilities from the distribution.
+
+        This method transforms the distribution to the OTF plane, normalises the visibilities,
+        takes the logarithm, and returns the real and imaginary parts of the visibilities.
+        Args:
+            model: The model object containing the parameters.
+            distribution: The distribution of the resolved source.
+        Returns:
+            tuple: A tuple containing the real and imaginary parts of the log visibilities.
         """
         # Getting regular visibilities
         uv = self.to_otf(model, distribution)
@@ -281,25 +316,42 @@ class ResolvedOIFit(AmigoOIData):
         vis = np.log(vis)
         return vis.real, vis.imag
 
-    def model_sicko(self, model, distribution):
+    def model_disco(self, model, distribution):
+        """
+        Simulate DISCOs from the resolved source distribution.
+
+        This method transforms the distribution to the DISCO basis by applying the
+        transformation matrices to the log visibilities.
+        It returns the amplitudes and phases in the DISCO basis.
+
+        Args:
+            model: The model object containing the parameters.
+            distribution: The distribution of the resolved source.
+        Returns:
+            tuple: A tuple containing the amplitudes and phases in the DISCO basis.
+        """
 
         # Getting log visibilities
         log_amp, phase = self.to_logvis(model, distribution)
 
-        # Transform to the sicko basis
-        sicko_amp = np.dot(log_amp, self.vis_mat)
-        sicko_phase = np.dot(phase, self.phi_mat)
+        # Transform to the disco basis
+        disco_amp = np.dot(log_amp, self.vis_mat)
+        disco_phase = np.dot(phase, self.phi_mat)
 
-        return sicko_amp, sicko_phase
-        # return np.concatenate([sicko_amp, sicko_phase])
-        # return np.vstack([sicko_amp, sicko_phase])
+        return disco_amp, disco_phase
 
-    def rotate(self, model, distribution, clip=True):
+    def rotate(self, distribution, clip=True):
         """
         Rotate the distribution by the parallactic angle.
+        This method rotates the distribution using the dLux utility functions.
+        Args:
+            distribution: The distribution of the resolved source.
+            clip: If True, clips the distribution to enforce positivity.
+        Returns:
+            Array: The rotated distribution, optionally clipped to enforce positivity.
         """
         knots = dlu.pixel_coords(distribution.shape[0], 1.0)
-        samps = dlu.rotate_coords(knots, -dlu.deg2rad(self.parang))
+        samps = dlu.rotate_coords(knots, dlu.deg2rad(self.parang))
 
         distribution = interp(
             distribution,
@@ -316,7 +368,17 @@ class ResolvedOIFit(AmigoOIData):
 
     def dirty_image(self, model, npix=None, rotate=True):
         """
-        Get the dirty image via MFT.
+        Get the dirty image via MFT. This is the image that would be obtained
+        if the visibilities were directly transformed back to the image plane.
+
+        Args:
+            model: The model object containing the parameters.
+            npix: The number of pixels in one axis of the dirty image.
+                    If None, uses the same size as the model source distribution.
+            rotate: If True, rotates the dirty image by the parallactic angle.
+                    If a float, rotates by that (-'ve) angle in radians.
+        Returns:
+            Array: The dirty image, normalised to sum to 1.
         """
 
         if npix is None:
@@ -333,7 +395,7 @@ class ResolvedOIFit(AmigoOIData):
         # Getting the dirty image
         dirty_image = dlu.MFT(
             phasor=uv,
-            wavelength=self.wavel,  # If focal length is None this doesn't do anything
+            wavelength=self.wavel,
             pixel_scale_in=2 * model.uv_pscale,
             npixels_out=npix,
             pixel_scale_out=model.pscale_in,
@@ -343,6 +405,7 @@ class ResolvedOIFit(AmigoOIData):
         # Taking amplitudes
         dirty_image = np.abs(dirty_image)
 
+        # Optional rotation of the dirty image
         if rotate:
             dirty_image = self.rotate(model, dirty_image)
 
@@ -351,7 +414,15 @@ class ResolvedOIFit(AmigoOIData):
 
     def __call__(self, model, rotate=True):
         """
-        Call the model with the given parameters.
+        Simulate the DISCOs from the resolved source distribution.
+        This method retrieves the distribution from the model, optionally rotates it,
+        and then computes the DISCOs using the model_disco method.
+        Args:
+            model: The model object containing the parameters.
+            rotate: If True, rotates the distribution by the parallactic angle.
+                    If a float, rotates by that (-'ve) angle in radians.
+        Returns:
+            tuple: A tuple containing the amplitudes and phases in the DISCO basis.
         """
         # NOTE: Distribution must be odd number of pixels in one axis
         distribution = model.get_distribution(self)
@@ -359,6 +430,4 @@ class ResolvedOIFit(AmigoOIData):
         if rotate:
             distribution = self.rotate(model, distribution)
 
-        # distribution /= distribution.sum()  # Normalise the distribution
-
-        return self.model_sicko(model, distribution=distribution)
+        return self.model_disco(model, distribution=distribution)
