@@ -8,15 +8,19 @@ import dLux.utils as dlu
 
 class ResolvedFit(ModelFit):
     """
-    Model fit for resolved sources. This adds the log distribution and position angles parameters.
+    Model fit for resolved sources. This adds the log distribution parameter.
     """
+
+    source_size: int
+
+    def __init__(self, file, source_size):
+        self.source_size = int(source_size)
+        return super().__init__(file)
 
     def get_key(self, param):
         match param:
             case "log_distribution":
                 return self.filter
-            case "position_angles":
-                return self.filename
 
         return super().get_key(param)
 
@@ -24,22 +28,17 @@ class ResolvedFit(ModelFit):
         match param:
             case "log_distribution":
                 return f"{param}.{self.get_key(param)}"
-            case "position_angles":
-                return f"{param}.{self.get_key(param)}"
 
         return super().map_param(param)
 
-    def initialise_params(self, optics, source_size, rolls_dict=None):
+    def initialise_params(self, optics):
         """
         Initialise the parameters for the resolved source model fit.
         The log distribution is set to a uniform distribution specified by the source size.
-        The position angles are set to the roll angles from the rolls_dict if provided,
-        otherwise defaulting to 0.0.
 
         Args:
             optics: The optics object (to pass to the parent class).
             source_size: The size of the source distribution (assumed square).
-            rolls_dict: Optional dictionary containing roll angles for each exposure.
 
         Returns:
             params: A dictionary containing the initialised parameters for the model fit.
@@ -50,15 +49,8 @@ class ResolvedFit(ModelFit):
         # log distribution
         params["log_distribution"] = (
             self.get_key("log_distribution"),
-            np.log10(np.ones((source_size, source_size)) / source_size**2),
+            np.log10(np.ones((self.source_size, self.source_size)) / self.source_size**2),
         )
-
-        # position angles
-        key = self.get_key("position_angles")
-        if rolls_dict is not None:
-            params["position_angles"] = (key, rolls_dict[key])
-        else:
-            params["position_angles"] = (key, np.array([0.0]))
 
         return params
 
@@ -82,23 +74,15 @@ class ResolvedFit(ModelFit):
         # rotating the distribution if required
         if rotate:
             if type(rotate) == bool:
-                pa = model._get_pa_from_key(self.get_key("position_angles"))
+                pa = self.parang
             else:
                 pa = rotate
             dist = dlu.rotate(dist, angle=-pa)
 
         return dist
 
-    def simulate(self, model):
-        """
-        Simulate the ramp. Identical to the parent class, but convolves the source with the PSF.
-
-        Args:
-            model: The model object containing the parameters.
-        Returns:
-            Array: The simulated ramp.
-        """
-
+    def simulate(self, model, return_slopes=True):
+        # model = self.nuke_pixel_grads(model)
         psf = self.model_psf(model)
 
         # convolve source with PSF
@@ -109,7 +93,11 @@ class ResolvedFit(ModelFit):
 
         illuminance = self.model_illuminance(image, model)
         ramp = self.model_ramp(illuminance, model)
-        return self.model_read(ramp, model)
+        ramp = self.model_read(ramp, model)
+
+        if return_slopes:
+            return ramp.set("data", np.diff(ramp.data, axis=0))
+        return ramp
 
 
 # class DynamicResolvedFit(ResolvedFit):
@@ -335,8 +323,8 @@ class ResolvedOIFit(OIFit):
         log_amp, phase = self.to_logvis(model, distribution)
 
         # Transform to the disco basis
-        disco_amp = np.dot(log_amp, self.vis_mat)
-        disco_phase = np.dot(phase, self.phi_mat)
+        disco_amp = np.dot(self.vis_mat, log_amp)
+        disco_phase = np.dot(self.phi_mat, phase)
 
         return disco_amp, disco_phase
 
@@ -385,8 +373,8 @@ class ResolvedOIFit(OIFit):
             npix = model.get_distribution(self).shape[0]
 
         # converting to u,v visibilities
-        log_vis = np.dot(self.vis, np.linalg.pinv(self.vis_mat))
-        phase = np.dot(self.phi, np.linalg.pinv(self.phi_mat))
+        log_vis = np.dot(np.linalg.pinv(self.vis_mat), self.vis)
+        phase = np.dot(np.linalg.pinv(self.phi_mat), self.phi)
         vis_im, phase_im = vis_to_im(log_vis, phase, (51, 51))
 
         # exponentiating
@@ -407,7 +395,7 @@ class ResolvedOIFit(OIFit):
 
         # Optional rotation of the dirty image
         if rotate:
-            dirty_image = self.rotate(model, dirty_image)
+            dirty_image = self.rotate(dirty_image)
 
         # Normalise the image
         return dirty_image / dirty_image.sum()
@@ -428,6 +416,6 @@ class ResolvedOIFit(OIFit):
         distribution = model.get_distribution(self)
 
         if rotate:
-            distribution = self.rotate(model, distribution)
+            distribution = self.rotate(distribution)
 
         return self.model_disco(model, distribution=distribution)
