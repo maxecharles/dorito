@@ -1,70 +1,39 @@
 from jax import numpy as np
-import amigo
-import zodiax as zdx
 
 
-def get_star_idx(arr):
-    i = arr.shape[0] // 2
-    return (i, i)
+def oi_log_likelihood(model, oi):
+    data = np.concatenate([oi.vis, oi.phi])
+    err = np.concatenate([oi.d_vis, oi.d_phi])
+    model_vis = np.concatenate([*oi(model)])
+
+    residual = data - model_vis
+    nll = np.sum(0.5 * (residual / err) ** 2 + np.log(err * np.sqrt(2 * np.pi)))
+
+    return nll
 
 
-def star_reg_on_array(arr, args):
-    """
-    Regulariser to penalise a central pixel from straying from a given prior value."
-    """
+def apply_regularisers(model, exposure, args):
 
-    prior = args["prior"]
-    star_idx = args["star_idx"]
+    if "reg_dict" not in args.keys():
+        return 0.0
 
-    # grabbing index of star
-    if star_idx is None:
-        star_idx = get_star_idx(arr)
+    # evaluating the regularisation term with each for each regulariser
+    priors = [coeff * fun(model, exposure) for coeff, fun in args["reg_dict"].values()]
 
-    arr /= arr.sum()  # normalising
-    star_flux = arr[star_idx]  # grabbing star pixel flux
-
-    return (star_flux - prior) ** 2
+    # summing the different regularisers
+    return np.array(priors).sum()
 
 
-def star_reg(model, exposure, args={"prior": 0.948, "star_idx": None}):
-    """
-    Regulariser to penalise a central pixel from straying from a given prior value."
-    """
-    # grabbing index of star
-    arr = model.get_distribution(exposure)
-    return star_reg_on_array(arr, args)
+def regularised_loss_fn(model, exposure, args={"reg_func_dict": {}, "reg_dict": {}}):
+    # this is per exposure
 
+    # regular likelihood term
+    likelihood = oi_log_likelihood(model, exposure)
 
-def regfunc_with_star(reg_func):
-    """
-    Takes in a regularisation function and returns a new regularisation
-    function that interpolates the star pixel.
-    """
-    return lambda model, exposure, args: reg_func(interp_star_pixel(model, exposure, args))
+    # grabbing and exponentiating log distributions
+    prior = apply_regularisers(model, exposure, args)
 
-
-def interp_star_pixel_on_array(arr, star_idx=None):
-    # grabbing index of star
-    if star_idx is None:
-        star_idx = get_star_idx(arr)
-
-    # setting star pixel to NaN
-    nanpix_arr = arr.at[star_idx].set(np.nan)
-
-    # unpacking indices
-    a, b = star_idx
-
-    # linear interpolation of surrounding pixels
-    interp_value = np.array(
-        [nanpix_arr[idx] for idx in [(a - 1, b), (a + 1, b), (a, b - 1), (a, b + 1)]]
-    ).mean()
-
-    # setting NaN value to interpolated value
-    return np.nan_to_num(nanpix_arr, nan=interp_value)
-
-
-def interp_star_pixel(model, exposure, args):
-    return interp_star_pixel_on_array(model.get_distribution(exposure), star_idx=args["star_idx"])
+    return likelihood + prior, ()
 
 
 def L1_loss(arr):
@@ -112,7 +81,7 @@ def ME_loss(arr, eps=1e-16):
     return -S
 
 
-def L1(model, exposure, args):
+def L1(model, exposure):
     flux = 10 ** model.fluxes[exposure.get_key("fluxes")]
     distribution = model.get_distribution(exposure)
     source = flux * distribution
@@ -120,12 +89,12 @@ def L1(model, exposure, args):
     return L1_loss(source)
 
 
-def L1_on_wavelets(model, exposure, args):
+def L1_on_wavelets(model, exposure):
     details = model.details[exposure.get_key("details")]
     return L1_loss(details)
 
 
-def L2(model, exposure, args):
+def L2(model, exposure):
     flux = 10 ** model.fluxes[exposure.get_key("fluxes")]
     distribution = model.get_distribution(exposure)
     source = flux * distribution
@@ -133,79 +102,16 @@ def L2(model, exposure, args):
     return L2_loss(source)
 
 
-def TV(model, exposure, args):
+def TV(model, exposure):
     return TV_loss(model.get_distribution(exposure))
 
 
-def TSV(model, exposure, args):
+def TSV(model, exposure):
     return TSV_loss(model.get_distribution(exposure))
 
 
-def ME(model, exposure, args):
+def ME(model, exposure):
     return ME_loss(model.get_distribution(exposure))
-
-
-def TSV_with_star(arr, star_idx=None):
-    # grabbing index of star
-    if star_idx is None:
-        star_idx = get_star_idx(arr)
-
-    # setting star pixel to NaN
-    nanpix_arr = arr.at[star_idx].set(np.nan)
-
-    return TSV_loss(interp_star_pixel(nanpix_arr, star_idx))
-
-
-def apply_regularisers(model, exposure, args):
-    # creating a list of regularisation functions and regularisation hyperparameters
-    fn_list = [args["reg_func_dict"][reg] for reg in args["reg_dict"].keys()]
-    coeff_list = list(args["reg_dict"].values())
-
-    # evaluating the regularisation term with each for each regulariser
-    priors = [coeff * fn(model, exposure, args) for coeff, fn in zip(coeff_list, fn_list)]
-    prior = np.array(priors).sum()  # summing the different regularisers
-
-    return prior
-
-
-def calc_loglike_prior(model, exposure, args):
-    # this is per exposure
-
-    # regular likelihood term
-    likelihood = -np.nanmean(amigo.stats.log_likelihood(exposure(model), exposure))
-
-    # grabbing and exponentiating log distributions
-    if not exposure.calibrator:
-        prior = apply_regularisers(model, exposure, args)
-
-    else:
-        prior = 0.0
-
-    return likelihood, prior
-
-
-def regularised_loss_fn(model, exposure, args):
-    # this is per exposure
-    likelihood, prior = calc_loglike_prior(model, exposure, args)
-
-    # return np.hypot(likelihood, prior), ()
-    return likelihood + prior, ()
-
-
-def prior_data_balance(model, exposure, args, coeff=1.0):
-    likelihood, prior = calc_loglike_prior(model, exposure, args)
-
-    return likelihood, prior / coeff
-
-
-def normalise_distribution(model_params, args):
-    params = model_params.params
-    if "log_distribution" in params.keys():
-        for k, log_dist in params["log_distribution"].items():
-            distribution = 10**log_dist
-            params["log_distribution"][k] = np.log10(distribution / distribution.sum())
-
-    return model_params.set("params", params), args
 
 
 def normalise_wavelets(model_params, args):
@@ -221,70 +127,70 @@ def normalise_wavelets(model_params, args):
     return model_params.set("params", params), args
 
 
-def lcurve_sweep(
-    regulariser: str,  # e.g. "L1", "L2", "TV", "QV", "ME", "SF"
-    coeffs,
-    model,
-    exposures: list,
-    args: dict,  # must contain reg_dict and reg_func_dict
-    optimisers: dict,
-    fishers: dict,
-    **optimise_kwargs,
-):
-    """
-    Function to find an optimal regularisation hyperparameter using the l-curve method.
+# def lcurve_sweep(
+#     regulariser: str,  # e.g. "L1", "L2", "TV", "QV", "ME", "SF"
+#     coeffs,
+#     model,
+#     exposures: list,
+#     args: dict,  # must contain reg_dict and reg_func_dict
+#     optimisers: dict,
+#     fishers: dict,
+#     **optimise_kwargs,
+# ):
+#     """
+#     Function to find an optimal regularisation hyperparameter using the l-curve method.
 
-    Parameters
-    ----------
-    regulariser : str
-        Name of the regulariser to be optimised.
-    coeffs : array_like
-        Regularisation hyperparameters to be tested.
-    model : amigo.Model
-        Model to be optimised.
-    exposures : list
-        List of exposures to be used in the optimisation.
-    args : dict
-        Dictionary containing the regularisation dictionary and regularisation function dictionary.
-    optimisers : dict
-        Dictionary containing the optimisers to be used in the optimisation.
-    fishers : dict
-        Dictionary containing the fishers to be used in the optimisation.
-    optimise_kwargs : dict
-        Additional keyword arguments to be passed to the optimisation function.
+#     Parameters
+#     ----------
+#     regulariser : str
+#         Name of the regulariser to be optimised.
+#     coeffs : array_like
+#         Regularisation hyperparameters to be tested.
+#     model : amigo.Model
+#         Model to be optimised.
+#     exposures : list
+#         List of exposures to be used in the optimisation.
+#     args : dict
+#         Dictionary containing the regularisation dictionary and regularisation function dictionary.
+#     optimisers : dict
+#         Dictionary containing the optimisers to be used in the optimisation.
+#     fishers : dict
+#         Dictionary containing the fishers to be used in the optimisation.
+#     optimise_kwargs : dict
+#         Additional keyword arguments to be passed to the optimisation function.
 
-    Returns
-    -------
-    tuple
-        Tuple containing the balance, regularisation hyperparameters and log distributions.
-    """
+#     Returns
+#     -------
+#     tuple
+#         Tuple containing the balance, regularisation hyperparameters and log distributions.
+#     """
 
-    @zdx.filter_jit
-    def calc_balance(model, exposures, args, coeff):
-        return np.array([prior_data_balance(model, exp, args, coeff) for exp in exposures]).sum(0)
+#     @zdx.filter_jit
+#     def calc_balance(model, exposures, args, coeff):
+#         return np.array([prior_data_balance(model, exp, args, coeff) for exp in exposures]).sum(0)
 
-    balances = []
-    dists = []
+#     balances = []
+#     dists = []
 
-    for coeff in coeffs:
+#     for coeff in coeffs:
 
-        args["reg_dict"][regulariser] = coeff
+#         args["reg_dict"][regulariser] = coeff
 
-        optim_model, _, _, _ = amigo.fitting.optimise(
-            model,
-            exposures,
-            optimisers,
-            fishers,
-            args=args,
-            **optimise_kwargs,
-        )
+#         optim_model, _, _, _ = amigo.fitting.optimise(
+#             model,
+#             exposures,
+#             optimisers,
+#             fishers,
+#             args=args,
+#             **optimise_kwargs,
+#         )
 
-        balance = calc_balance(optim_model, exposures, args, coeff)
-        balances.append(balance)
+#         balance = calc_balance(optim_model, exposures, args, coeff)
+#         balances.append(balance)
 
-        if "log_distribution" in optim_model.params.keys():
-            dists.append(optim_model.log_distribution)
-        else:
-            dists.append(optim_model.get_distribution(exposures[0]))
+#         if "log_distribution" in optim_model.params.keys():
+#             dists.append(optim_model.log_distribution)
+#         else:
+#             dists.append(optim_model.get_distribution(exposures[0]))
 
-    return np.array(balances).T, coeffs, dists
+#     return np.array(balances).T, coeffs, dists

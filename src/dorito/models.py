@@ -56,41 +56,41 @@ class ResolvedAmigoModel(AmigoModel):
         return self._get_distribution_from_key(exposure.get_key("log_distribution"))
 
 
-class WaveletModel(ResolvedAmigoModel):
-    """
-    A class for resolved source models in the AMIGO framework that includes wavelet transforms.
-    This class extends the ResolvedAmigoModel to incorporate wavelet transforms
-    for more complex source distributions.
-    It inherits from BaseModeller and provides methods to retrieve source distributions
-    and position angles based on exposure keys, while also handling wavelet transforms.
-    """
+# class WaveletModel(ResolvedAmigoModel):
+#     """
+#     A class for resolved source models in the AMIGO framework that includes wavelet transforms.
+#     This class extends the ResolvedAmigoModel to incorporate wavelet transforms
+#     for more complex source distributions.
+#     It inherits from BaseModeller and provides methods to retrieve source distributions
+#     and position angles based on exposure keys, while also handling wavelet transforms.
+#     """
 
-    wavelets: None
+#     wavelets: None
 
-    def __init__(
-        self,
-        source_size,
-        exposures,
-        optics,
-        detector,
-        read,
-        rotate=False,
-        rolls_dict=None,
-        source_oversample=1,
-        wavelets=None,
-    ):
-        self.wavelets = wavelets
+#     def __init__(
+#         self,
+#         source_size,
+#         exposures,
+#         optics,
+#         detector,
+#         read,
+#         rotate=False,
+#         rolls_dict=None,
+#         source_oversample=1,
+#         wavelets=None,
+#     ):
+#         self.wavelets = wavelets
 
-        super().__init__(
-            source_size,
-            exposures,
-            optics,
-            detector,
-            read,
-            rotate=rotate,
-            rolls_dict=rolls_dict,
-            source_oversample=source_oversample,
-        )
+#         super().__init__(
+#             source_size,
+#             exposures,
+#             optics,
+#             detector,
+#             read,
+#             rotate=rotate,
+#             rolls_dict=rolls_dict,
+#             source_oversample=source_oversample,
+#         )
 
 
 class ResolvedDiscoModel(BaseModeller):

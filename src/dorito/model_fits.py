@@ -100,20 +100,6 @@ class ResolvedFit(ModelFit):
         return ramp
 
 
-# class DynamicResolvedFit(ResolvedFit):
-#     """
-#     Model fit for resolved sources where each exposure has a different
-#     intensity distribution.
-#     """
-
-#     def get_key(self, param):
-#         match param:
-#             case "log_distribution":
-#                 return "_".join([self.key, self.filter])
-
-#         return super().get_key(param)
-
-
 class WaveletFit(ResolvedFit):
 
     def get_key(self, param):
