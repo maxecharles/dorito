@@ -4,7 +4,7 @@ from jax import numpy as np
 def oi_log_likelihood(model, oi):
     data = np.concatenate([oi.vis, oi.phi])
     err = np.concatenate([oi.d_vis, oi.d_phi])
-    model_vis = np.concatenate([*oi(model)])
+    model_vis = oi(model)
 
     residual = data - model_vis
     nll = np.sum(0.5 * (residual / err) ** 2 + np.log(err * np.sqrt(2 * np.pi)))

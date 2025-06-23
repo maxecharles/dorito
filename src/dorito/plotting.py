@@ -1,4 +1,3 @@
-import jax
 from jax import numpy as np
 from dLux import utils as dlu
 from matplotlib import pyplot as plt

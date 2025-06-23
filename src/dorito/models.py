@@ -136,7 +136,7 @@ class ResolvedDiscoModel(BaseModeller):
         """
         return dlu.arcsec2rad(self.psf_pixel_scale / self.oversample)
 
-    def get_distribution(self, exposure):
+    def get_distribution(self, exposure, rotate=True):
         """
         Get the distribution from the exposure.
 
@@ -145,5 +145,12 @@ class ResolvedDiscoModel(BaseModeller):
         Returns:
             Array: The intensity distribution of the source.
         """
-        log_dist = self.params["log_dist"][exposure.get_key("log_dist")]
-        return 10**log_dist
+        distribution = 10 ** self.params["log_dist"][exposure.get_key("log_dist")]
+        if rotate:
+            distribution = exposure.rotate(distribution)
+
+        return distribution
+
+    def __call__(self, exposure, rotate=True):
+        """ """
+        return self.get_distribution(exposure, rotate=rotate)

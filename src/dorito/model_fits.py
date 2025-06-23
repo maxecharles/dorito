@@ -268,51 +268,28 @@ class ResolvedOIFit(OIFit):
             pixel_scale_out=model.uv_pscale,
         )
 
-    def to_logvis(self, model, distribution):
-        """
-        Fetch the log visibilities from the distribution.
+    def to_cvis(self, model, distribution):
 
-        This method transforms the distribution to the OTF plane, normalises the visibilities,
-        takes the logarithm, and returns the real and imaginary parts of the visibilities.
-        Args:
-            model: The model object containing the parameters.
-            distribution: The distribution of the resolved source.
-        Returns:
-            tuple: A tuple containing the real and imaginary parts of the log visibilities.
-        """
-        # Getting regular visibilities
-        uv = self.to_otf(model, distribution)
+        # Perform MFT and move to OTF plane
+        uv = self.to_otf(model, distribution)  # shape (102, 102)
 
-        # Normalise the visibilities, take log and get amp and phase
+        # Normalise the complex u,v plane
         uv /= model.params["base_uv"][self.get_key("base_uv")]
-        uv = dlu.downsample(uv, 2, mean=True)
-        vis = uv.flatten()[: uv.size // 2]
-        vis = np.log(vis)
-        return vis.real, vis.imag
+
+        # Downsample to the desired u,v resolution
+        uv = dlu.downsample(uv, 2, mean=True)  # shape (51, 51)
+
+        # flatten and take first half (u,v symmetry)
+        cvis = uv.flatten()[: uv.size // 2]
+
+        return cvis
 
     def model_disco(self, model, distribution):
         """
-        Simulate DISCOs from the resolved source distribution.
-
-        This method transforms the distribution to the DISCO basis by applying the
-        transformation matrices to the log visibilities.
-        It returns the amplitudes and phases in the DISCO basis.
-
-        Args:
-            model: The model object containing the parameters.
-            distribution: The distribution of the resolved source.
-        Returns:
-            tuple: A tuple containing the amplitudes and phases in the DISCO basis.
+        Compute the model visibilities and phases for the given model object.
         """
-
-        # Getting log visibilities
-        log_amp, phase = self.to_logvis(model, distribution)
-
-        # Transform to the disco basis
-        disco_amp = np.dot(self.vis_mat, log_amp)
-        disco_phase = np.dot(self.phi_mat, phase)
-
-        return disco_amp, disco_phase
+        cvis = self.to_cvis(model, distribution)
+        return self.flatten_model(cvis)
 
     def rotate(self, distribution, clip=True):
         """
@@ -331,7 +308,7 @@ class ResolvedOIFit(OIFit):
             distribution,
             knots,
             samps,
-            method="cubic",
+            method="linear",
         )
 
         # clipping to enforce positivity
@@ -340,7 +317,7 @@ class ResolvedOIFit(OIFit):
 
         return distribution
 
-    def dirty_image(self, model, npix=None, rotate=True):
+    def dirty_image(self, model, npix=None, rotate=True, otf_support=None):
         """
         Get the dirty image via MFT. This is the image that would be obtained
         if the visibilities were directly transformed back to the image plane.
@@ -365,6 +342,10 @@ class ResolvedOIFit(OIFit):
 
         # exponentiating
         uv = np.exp(vis_im + 1j * phase_im)
+
+        # If an OTF support is provided, apply it to the uv visibilities
+        if otf_support is not None:
+            uv *= otf_support
 
         # Getting the dirty image
         dirty_image = dlu.MFT(
@@ -399,9 +380,6 @@ class ResolvedOIFit(OIFit):
             tuple: A tuple containing the amplitudes and phases in the DISCO basis.
         """
         # NOTE: Distribution must be odd number of pixels in one axis
-        distribution = model.get_distribution(self)
-
-        if rotate:
-            distribution = self.rotate(distribution)
+        distribution = model.get_distribution(self, rotate=rotate)
 
         return self.model_disco(model, distribution=distribution)
