@@ -266,6 +266,7 @@ class ResolvedOIFit(OIFit):
             pixel_scale_in=model.pscale_in,
             npixels_out=model.uv_npixels,
             pixel_scale_out=model.uv_pscale,
+            inverse=True,
         )
 
     def to_cvis(self, model, distribution):
@@ -317,7 +318,9 @@ class ResolvedOIFit(OIFit):
 
         return distribution
 
-    def dirty_image(self, model, npix=None, rotate=True, otf_support=None):
+    def dirty_image(
+        self, model, npix=None, rotate=True, otf_support=None, pad=None, pad_value=1 + 0j
+    ):
         """
         Get the dirty image via MFT. This is the image that would be obtained
         if the visibilities were directly transformed back to the image plane.
@@ -342,6 +345,10 @@ class ResolvedOIFit(OIFit):
 
         # exponentiating
         uv = np.exp(vis_im + 1j * phase_im)
+
+        if pad is not None:
+            # Pad the uv visibilities if a pad is specified
+            uv = np.pad(uv, pad_width=pad, mode="constant", constant_values=pad_value)
 
         # If an OTF support is provided, apply it to the uv visibilities
         if otf_support is not None:

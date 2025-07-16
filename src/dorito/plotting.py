@@ -61,90 +61,78 @@ def get_arcsec_extents(pixel_scale, shape):
     return np.array([0.5, -0.5, -0.5, 0.5]) * pixel_scale * shape[0]
 
 
+from dorito.plotting import get_arcsec_extents
+
+
 def plot_result(
     ax,
     array,
     pixel_scale,
-    roll_angle_degrees: float = 0.0,
-    model=None,
-    show_diff_lim: bool = True,
+    roll_angle_degrees: float = None,
     cmap: str = "afmhot_10u",
     bg_color: str = "k",
     axis_labels: dict = {
         "xlabel": r"$\Delta$RA [arcsec]",
         "ylabel": r"$\Delta$DEC [arcsec]",
     },
-    vmin: float = 0.0,
-    vmax: float = None,
-    power=0.5,
-    contour=False,
+    norm=mpl.colors.PowerNorm(1, vmin=0, vmax=None),
+    diff_lim: float = None,
     scale=1.0,
     translate=(0.0, 0.0),
+    ticks=[0.5, 0, -0.5],
 ):
-    rotation_transform = (
-        mpl.transforms.Affine2D().translate(*translate).rotate_deg(roll_angle_degrees).scale(scale)
-    )  # Create a rotation transformation
 
     ax.set_facecolor(bg_color)  # Set the background colour
     ax.tick_params(direction="out")
     ax.set(
-        xticks=[0.5, 0, -0.5],
-        yticks=[-0.5, 0, 0.5],
+        xticks=ticks,
+        yticks=ticks[::-1],
         **axis_labels,
     )  # Set the axis labels
-    # if model is not None:
-    #     pixel_scale = model.psf_pixel_scale / model.optics.oversample / scale
-    #     if show_diff_lim:
-    #         ax = dorito.plotting.plot_diffraction_limit(model, ax, OOP=True)
 
     kwargs = {
         "cmap": cmap,
         "extent": get_arcsec_extents(pixel_scale / scale, array.shape),
-        "norm": mpl.colors.PowerNorm(power, vmin=vmin, vmax=vmax),
+        "norm": norm,
         "aspect": "equal",
     }
-    if contour:
-        im = ax.contour(
-            array,
-            linewidths=0.5,
-            levels=array.max() * np.linspace(0, 1, 10) ** 2,
-            **kwargs,
-        )
-    else:
-        im = ax.imshow(
-            array,
-            **kwargs,
-        )
 
-    # ax.axis("equal")
-    trans_data = rotation_transform + ax.transData  # creating transformation
-    im.set_transform(trans_data)  # applying transformation to image
+    im = ax.imshow(
+        array,
+        **kwargs,
+    )
+
+    if diff_lim is not None:
+
+        centre = 0.95 * np.array(kwargs["extent"][0:2]) + np.array([-diff_lim, diff_lim])
+
+        beam = mpl.patches.Circle(
+            centre,
+            radius=diff_lim,
+            facecolor="white",
+            edgecolor="black",
+            alpha=0.7,
+            zorder=10,
+        )
+        ax.add_patch(beam)
+
+    if roll_angle_degrees is not None or scale is not None:
+
+        if scale is None:
+            scale = 1.0
+        if roll_angle_degrees is None:
+            roll_angle_degrees = 0.0
+
+        rotation_transform = (
+            mpl.transforms.Affine2D()
+            .translate(*translate)
+            .rotate_deg(roll_angle_degrees)
+            .scale(scale)
+        )  # Create a rotation transformation
+        trans_data = rotation_transform + ax.transData  # creating transformation
+        im.set_transform(trans_data)  # applying transformation to image
 
     return im
-
-
-def create_gif_from_dir(png_dir, name, **kwargs):
-    """
-    Create an animated GIF from all PNG files in the specified directory.
-
-    Args:
-        png_dir (str): Path to the directory containing PNG files.
-        name (str): Name of the output GIF file.
-    """
-    # Get a sorted list of all PNG files in the directory
-    png_files = sorted([f for f in os.listdir(png_dir) if f.endswith(".png")])
-
-    # Ensure there are PNG files to process
-    if not png_files:
-        raise ValueError("No PNG files found in the directory!")
-
-    # Load the images into a list
-    images = [Image.open(os.path.join(png_dir, file)) for file in png_files]
-
-    # Save the images as an animated GIF
-    images[0].save(
-        png_dir + name, save_all=True, append_images=images[1:], optimize=False, **kwargs
-    )
 
 
 def tree_plot(coeffs):
