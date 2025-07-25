@@ -1,8 +1,9 @@
 from amigo.core_models import BaseModeller, AmigoModel
 
 # core jax
-from jax import Array
+from jax import Array, numpy as np
 import dLux.utils as dlu
+from scipy.ndimage import binary_dilation
 
 
 class ResolvedAmigoModel(AmigoModel):
@@ -154,3 +155,72 @@ class ResolvedDiscoModel(BaseModeller):
     def __call__(self, exposure, rotate=True):
         """ """
         return self.get_distribution(exposure, rotate=rotate)
+
+
+class MCADiscoModel(ResolvedDiscoModel):
+
+    size: int = None
+    moat: np.ndarray = None  # Placeholder for the moat attribute
+    star: np.ndarray = None  # Placeholder for the star attribute
+
+    def __init__(
+        self,
+        ois: list,
+        source_dict: dict,
+        uv_npixels: int,
+        uv_pscale: float,
+        oversample: float = 1.0,
+        psf_pixel_scale: float = 0.065524085,  # arcsec/pixel
+        moat_width: int = 0,
+    ):
+
+        dist_shape = source_dict["distribution"].shape
+        zeros = np.zeros(dist_shape).flatten()
+        star = zeros.at[zeros.size // 2].set(True)
+
+        if moat_width == 0:
+            moat_mask = np.array(star, dtype=bool)
+        else:
+            moat_mask = binary_dilation(star.reshape(dist_shape), iterations=moat_width).flatten()
+
+        # Precompute safe indices for use in JIT-compiled code
+        self.moat = np.where(~moat_mask)[0]  # shape (N,)
+
+        self.star = star
+        self.size = dist_shape[0]
+
+        super().__init__(
+            ois,
+            source_dict,
+            uv_npixels,
+            uv_pscale,
+            oversample,
+            psf_pixel_scale,
+        )
+
+    def get_distribution(self, exposure, rotate=False, with_star=True):
+        """
+        Get the distribution from the exposure.
+
+        Args:
+            exposure: The exposure object containing the distribution key.
+        Returns:
+            Array: The intensity distribution of the source.
+        """
+
+        zeros = np.zeros(self.size * self.size)
+        values = 10 ** self.params["log_dist"][exposure.get_key("log_dist")]
+        contrast = self.params["contrast"][exposure.get_key("contrast")]
+
+        resolved_component = zeros.at[self.moat].set(values).reshape((self.size, self.size))
+
+        if with_star:
+            star_component = contrast * self.star.reshape((self.size, self.size))
+            distribution = resolved_component + star_component
+        else:
+            distribution = resolved_component
+
+        if rotate:
+            distribution = exposure.rotate(distribution)
+
+        return distribution

@@ -390,3 +390,48 @@ class ResolvedOIFit(OIFit):
         distribution = model.get_distribution(self, rotate=rotate)
 
         return self.model_disco(model, distribution=distribution)
+
+
+class MCAOIFit(ResolvedOIFit):
+
+    def initialise_params(self, model, source_dict: dict):
+
+        distribution = source_dict["distribution"]
+        contrast = source_dict["contrast"]
+
+        params = {}  # Initialise an empty dictionary for parameters
+
+        # resolved component distributino
+        distribution = (distribution.flatten())[~model.moat]
+        distribution *= (1 - contrast) / distribution.sum()  # normalise the distribution
+
+        log_dist = np.log10(distribution)
+        params["log_dist"] = self.get_key("log_dist"), log_dist
+
+        # the star component
+        params["contrast"] = self.get_key("contrast"), np.array(contrast)
+
+        # Fourier normalisation (not to be optimised)
+        params["base_uv"] = self.get_key("base_uv"), self.get_base_uv(model, distribution.shape[0])
+        params
+        return params
+
+    def get_key(self, param):
+
+        match param:
+            case "contrast":
+                return self.filter
+
+        return super().get_key(param)
+
+    def map_param(self, param):
+
+        # Map the appropriate parameter to the correct key
+        if param in ["log_dist", "base_uv", "contrast"]:
+            return f"{param}.{self.get_key(param)}"
+
+        # Else its global
+        return param
+
+    def __call__(self, model, rotate=False):
+        return super().__call__(model, rotate=rotate)
