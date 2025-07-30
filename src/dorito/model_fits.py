@@ -13,9 +13,9 @@ class ResolvedFit(ModelFit):
 
     source_size: int
 
-    def __init__(self, file, source_size):
+    def __init__(self, file, source_size, use_cov=True):
         self.source_size = int(source_size)
-        return super().__init__(file)
+        return super().__init__(file, use_cov=use_cov)
 
     def get_key(self, param):
         match param:
@@ -69,7 +69,7 @@ class ResolvedFit(ModelFit):
         """
 
         # grabbing the distribution from the model
-        dist = model._get_distribution_from_key(self.get_key("log_distribution"))
+        dist = model.get_distribution(self)
 
         # rotating the distribution if required
         if rotate:
@@ -80,6 +80,32 @@ class ResolvedFit(ModelFit):
             dist = dlu.rotate(dist, angle=-pa)
 
         return dist
+
+    def rotate(self, distribution, clip=True):
+        """
+        Rotate the distribution by the parallactic angle.
+        This method rotates the distribution using the dLux utility functions.
+        Args:
+            distribution: The distribution of the resolved source.
+            clip: If True, clips the distribution to enforce positivity.
+        Returns:
+            Array: The rotated distribution, optionally clipped to enforce positivity.
+        """
+        knots = dlu.pixel_coords(distribution.shape[0], 1.0)
+        samps = dlu.rotate_coords(knots, dlu.deg2rad(self.parang))
+
+        distribution = interp(
+            distribution,
+            knots,
+            samps,
+            method="linear",
+        )
+
+        # clipping to enforce positivity
+        if clip:
+            return np.clip(distribution, min=0.0, max=None)
+
+        return distribution
 
     def simulate(self, model, return_slopes=True):
         # model = self.nuke_pixel_grads(model)

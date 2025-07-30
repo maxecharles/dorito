@@ -6,6 +6,30 @@ import dLux.utils as dlu
 from scipy.ndimage import binary_dilation
 
 
+# class ResolvedModel(BaseModeller):
+
+#     rotate: bool = True
+
+#     def get_distribution(self, exposure, rotate=True):
+#         """
+#         Get the distribution from the exposure.
+
+#         Args:
+#             exposure: The exposure object containing the distribution key.
+#         Returns:
+#             Array: The intensity distribution of the source.
+#         """
+#         distribution = 10 ** self.params["log_dist"][exposure.get_key("log_dist")]
+#         if rotate:
+#             distribution = exposure.rotate(distribution)
+
+#         return distribution
+
+#     def __call__(self, exposure, rotate=True):
+#         """ """
+#         return self.get_distribution(exposure, rotate=rotate)
+
+
 class ResolvedAmigoModel(AmigoModel):
     """
     Amigo model for resolved sources.
@@ -31,30 +55,17 @@ class ResolvedAmigoModel(AmigoModel):
 
         super().__init__(exposures, optics, detector, ramp_model, read, state)
 
-    def _get_distribution_from_key(self, exp_key) -> Array:
-        """
-        Returns the normalised intensity distribution of the source
-        from the key of the parameter.
-        """
-        log_dist = self.params["log_distribution"][exp_key]
-
-        return 10**log_dist
-
-    def _get_pa_from_key(self, exp_key) -> Array:
-        """
-        Returns the normalised intensity distribution of the source
-        from the key of the parameter.
-        """
-        pa_deg = self.params["position_angles"][exp_key]
-
-        return dlu.deg2rad(pa_deg)
-
     def get_distribution(self, exposure) -> Array:
         """
         Returns the normalised intensity distribution of the source
         from the exposure object.
         """
-        return self._get_distribution_from_key(exposure.get_key("log_distribution"))
+
+        dist = 10 ** self.params["log_distribution"][exposure.get_key("log_distribution")]
+
+        if self.rotate:
+            dist = exposure.rotate(dist)
+        return dist
 
 
 # class WaveletModel(ResolvedAmigoModel):
