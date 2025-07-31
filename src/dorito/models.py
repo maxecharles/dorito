@@ -1,61 +1,201 @@
-from amigo.core_models import BaseModeller
-from amigo.optical_models import AMIOptics
-from jax import numpy as np
-import dLux as dl
+from amigo.core_models import BaseModeller, AmigoModel
+
+# core jax
+from jax import Array, numpy as np
+import dLux.utils as dlu
+from scipy.ndimage import binary_dilation
 
 
-class ResolvedAmigoModel(BaseModeller):
-    filters: dict
-    # dispersion: dict
-    # contrast: float
-    optics: AMIOptics
-    visibilities: None
-    detector: None
-    ramp: None
-    read: None
+class BaseResolvedModel:
 
-    def __init__(self, params, optics, ramp, detector, read, filters, visibilities=None):
-        self.filters = filters
-        self.optics = optics
-        self.detector = detector
-        self.ramp = ramp
-        self.read = read
-        self.visibilities = visibilities
+    def get_distribution(self, exposure, rotate=True):
+        """
+        Get the distribution from the exposure.
+
+        Args:
+            exposure: The exposure object containing the distribution key.
+        Returns:
+            Array: The intensity distribution of the source.
+        """
+        distribution = 10 ** self.params["log_dist"][exposure.get_key("log_dist")]
+        if rotate:
+            distribution = exposure.rotate(distribution)
+
+        return distribution
+
+    def __call__(self, exposure, rotate=True):
+        """ """
+        return self.get_distribution(exposure, rotate=rotate)
+
+
+class ResolvedAmigoModel(AmigoModel, BaseResolvedModel):
+    """
+    Amigo model for resolved sources.
+    """
+
+    source_oversample: int = 1
+
+    def __init__(
+        self,
+        exposures,
+        optics,
+        detector,
+        ramp_model,
+        read,
+        state,
+        source_oversample=1,
+    ):
+
+        self.source_oversample = source_oversample
+
+        super().__init__(exposures, optics, detector, ramp_model, read, state)
+
+
+# class WaveletModel(ResolvedAmigoModel):
+#     """
+#     A class for resolved source models in the AMIGO framework that includes wavelet transforms.
+#     This class extends the ResolvedAmigoModel to incorporate wavelet transforms
+#     for more complex source distributions.
+#     It inherits from BaseModeller and provides methods to retrieve source distributions
+#     and position angles based on exposure keys, while also handling wavelet transforms.
+#     """
+
+#     wavelets: None
+
+#     def __init__(
+#         self,
+#         source_size,
+#         exposures,
+#         optics,
+#         detector,
+#         read,
+#         rotate=False,
+#         rolls_dict=None,
+#         source_oversample=1,
+#         wavelets=None,
+#     ):
+#         self.wavelets = wavelets
+
+#         super().__init__(
+#             source_size,
+#             exposures,
+#             optics,
+#             detector,
+#             read,
+#             rotate=rotate,
+#             rolls_dict=rolls_dict,
+#             source_oversample=source_oversample,
+#         )
+
+
+class ResolvedDiscoModel(BaseResolvedModel):
+    """
+    A class to hold the parameters of a resolved source model to be used in fitting
+    to DISCO data.
+    """
+
+    uv_npixels: int
+    uv_pscale: float
+    oversample: float
+    psf_pixel_scale: float
+
+    def __init__(
+        self,
+        ois: list,
+        distribution: Array,
+        uv_npixels: int,
+        uv_pscale: float,
+        oversample: float = 1.0,
+        psf_pixel_scale: float = 0.065524085,  # arcsec/pixel
+    ):
+
+        self.uv_npixels = uv_npixels
+        self.oversample = oversample
+        self.uv_pscale = uv_pscale
+        self.psf_pixel_scale = psf_pixel_scale
+
+        params = {}
+        for oi in ois:
+            param_dict = oi.initialise_params(self, distribution)
+            for param, (key, value) in param_dict.items():
+                if param not in params.keys():
+                    params[param] = {}
+                params[param][key] = value
 
         super().__init__(params)
 
-        # if "spectral_coeffs" in params:
-        #     if (
-        #         len(params["spectral_coeffs"].keys())
-        #         != list(self.filters.values())[0].shape[0]
-        #     ):
-        #         raise ValueError(
-        #             "The number of spectral coefficients must match the number of "
-        #             "filters."
-        #         )
-
     @property
-    def distribution(self, exposure):
-        distribution = 10 ** self.log_distribution[exposure.get_key("log_distribution")]
-        return distribution / distribution.sum()
+    def pscale_in(self):
+        """
+        The pixel scale of the image plane, in radians per pixel.
+        """
+        return dlu.arcsec2rad(self.psf_pixel_scale / self.oversample)
 
-    def model(self, exposure, **kwargs):
-        return exposure.fit(self, exposure, **kwargs)
 
-    def __getattr__(self, key):
-        if key in self.params:
-            return self.params[key]
-        for k, val in self.params.items():
-            if hasattr(val, key):
-                return getattr(val, key)
-        if hasattr(self.optics, key):
-            return getattr(self.optics, key)
-        if hasattr(self.detector, key):
-            return getattr(self.detector, key)
-        if hasattr(self.ramp, key):
-            return getattr(self.ramp, key)
-        if hasattr(self.read, key):
-            return getattr(self.read, key)
-        if hasattr(self.visibilities, key):
-            return getattr(self.visibilities, key)
-        raise AttributeError(f"{self.__class__.__name__} has no attribute " f"{key}.")
+class MCADiscoModel(ResolvedDiscoModel):
+
+    size: int = None
+    moat: np.ndarray = None  # Placeholder for the moat attribute
+    star: np.ndarray = None  # Placeholder for the star attribute
+
+    def __init__(
+        self,
+        ois: list,
+        source_dict: dict,
+        uv_npixels: int,
+        uv_pscale: float,
+        oversample: float = 1.0,
+        psf_pixel_scale: float = 0.065524085,  # arcsec/pixel
+        moat_width: int = 0,
+    ):
+
+        dist_shape = source_dict["distribution"].shape
+        zeros = np.zeros(dist_shape).flatten()
+        star = zeros.at[zeros.size // 2].set(True)
+
+        if moat_width == 0:
+            moat_mask = np.array(star, dtype=bool)
+        else:
+            moat_mask = binary_dilation(star.reshape(dist_shape), iterations=moat_width).flatten()
+
+        # Precompute safe indices for use in JIT-compiled code
+        self.moat = np.where(~moat_mask)[0]  # shape (N,)
+
+        self.star = star
+        self.size = dist_shape[0]
+
+        super().__init__(
+            ois,
+            source_dict,
+            uv_npixels,
+            uv_pscale,
+            oversample,
+            psf_pixel_scale,
+        )
+
+    def get_distribution(self, exposure, rotate=True, with_star=True):
+        """
+        Get the distribution from the exposure.
+
+        Args:
+            exposure: The exposure object containing the distribution key.
+        Returns:
+            Array: The intensity distribution of the source.
+        """
+
+        zeros = np.zeros(self.size * self.size)
+        values = 10 ** self.params["log_dist"][exposure.get_key("log_dist")]
+        contrast = self.params["contrast"][exposure.get_key("contrast")]
+
+        resolved_component = zeros.at[self.moat].set(values).reshape((self.size, self.size))
+
+        if with_star:
+            star_component = contrast * self.star.reshape((self.size, self.size))
+            distribution = resolved_component + star_component
+        else:
+            distribution = resolved_component
+
+        if rotate:
+            distribution = exposure.rotate(distribution)
+
+        return distribution
