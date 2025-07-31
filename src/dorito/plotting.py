@@ -135,52 +135,52 @@ def plot_result(
     return im
 
 
-def tree_plot(coeffs):
+# def tree_plot(coeffs):
 
-    # approximation
-    A = coeffs[0].squeeze()
-    levels = [A]
+#     # approximation
+#     A = coeffs[0].squeeze()
+#     levels = [A]
 
-    # details
-    for level in coeffs[1:]:
-        H = level[0].squeeze()
-        V = level[1].squeeze()
-        D = level[2].squeeze()
+#     # details
+#     for level in coeffs[1:]:
+#         H = level[0].squeeze()
+#         V = level[1].squeeze()
+#         D = level[2].squeeze()
 
-        levels += [H, V, D]
+#         levels += [H, V, D]
 
-    lvl = len(coeffs[1:])
+#     lvl = len(coeffs[1:])
 
-    # generating subplot axes kwargs
-    axes = [
-        (2**lvl, 2**lvl, 1),
-        *[(2**j, 2**j, i) for j in range(lvl, 0, -1) for i in [2, 2**j + 1, 2**j + 2]],
-    ]
+#     # generating subplot axes kwargs
+#     axes = [
+#         (2**lvl, 2**lvl, 1),
+#         *[(2**j, 2**j, i) for j in range(lvl, 0, -1) for i in [2, 2**j + 1, 2**j + 2]],
+#     ]
 
-    # plotting
-    plt.figure(figsize=2 * [6 + (2**lvl)])
+#     # plotting
+#     plt.figure(figsize=2 * [6 + (2**lvl)])
 
-    # looping over subplots
-    for i, ax_kwargs in enumerate(axes):
+#     # looping over subplots
+#     for i, ax_kwargs in enumerate(axes):
 
-        arr = levels[i]
+#         arr = levels[i]
 
-        # approximatino
-        if i == 0:
-            cmap = "viridis"
-            vmin, vmax = None, None
+#         # approximatino
+#         if i == 0:
+#             cmap = "viridis"
+#             vmin, vmax = None, None
 
-        # details
-        else:
-            cmap = "cmr.wildfire"
-            v = np.nanmax(np.abs(arr))
-            vmin, vmax = -v, v
+#         # details
+#         else:
+#             cmap = "cmr.wildfire"
+#             v = np.nanmax(np.abs(arr))
+#             vmin, vmax = -v, v
 
-        imshow_kwargs = {"cmap": cmap, "vmin": vmin, "vmax": vmax}
+#         imshow_kwargs = {"cmap": cmap, "vmin": vmin, "vmax": vmax}
 
-        ax = plt.subplot(*ax_kwargs)
-        ax.axis("off")
-        ax.imshow(arr, **imshow_kwargs)
+#         ax = plt.subplot(*ax_kwargs)
+#         ax.axis("off")
+#         ax.imshow(arr, **imshow_kwargs)
 
-    plt.tight_layout()
-    plt.show()
+#     plt.tight_layout()
+#     plt.show()
