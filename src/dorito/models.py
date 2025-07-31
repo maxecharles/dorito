@@ -6,36 +6,33 @@ import dLux.utils as dlu
 from scipy.ndimage import binary_dilation
 
 
-# class ResolvedModel(BaseModeller):
+class BaseResolvedModel:
 
-#     rotate: bool = True
+    def get_distribution(self, exposure, rotate=True):
+        """
+        Get the distribution from the exposure.
 
-#     def get_distribution(self, exposure, rotate=True):
-#         """
-#         Get the distribution from the exposure.
+        Args:
+            exposure: The exposure object containing the distribution key.
+        Returns:
+            Array: The intensity distribution of the source.
+        """
+        distribution = 10 ** self.params["log_dist"][exposure.get_key("log_dist")]
+        if rotate:
+            distribution = exposure.rotate(distribution)
 
-#         Args:
-#             exposure: The exposure object containing the distribution key.
-#         Returns:
-#             Array: The intensity distribution of the source.
-#         """
-#         distribution = 10 ** self.params["log_dist"][exposure.get_key("log_dist")]
-#         if rotate:
-#             distribution = exposure.rotate(distribution)
+        return distribution
 
-#         return distribution
-
-#     def __call__(self, exposure, rotate=True):
-#         """ """
-#         return self.get_distribution(exposure, rotate=rotate)
+    def __call__(self, exposure, rotate=True):
+        """ """
+        return self.get_distribution(exposure, rotate=rotate)
 
 
-class ResolvedAmigoModel(AmigoModel):
+class ResolvedAmigoModel(AmigoModel, BaseResolvedModel):
     """
     Amigo model for resolved sources.
     """
 
-    rotate: bool = True
     source_oversample: int = 1
 
     def __init__(
@@ -47,25 +44,11 @@ class ResolvedAmigoModel(AmigoModel):
         read,
         state,
         source_oversample=1,
-        rotate=True,
     ):
 
-        self.rotate = rotate
         self.source_oversample = source_oversample
 
         super().__init__(exposures, optics, detector, ramp_model, read, state)
-
-    def get_distribution(self, exposure) -> Array:
-        """
-        Returns the normalised intensity distribution of the source
-        from the exposure object.
-        """
-
-        dist = 10 ** self.params["log_distribution"][exposure.get_key("log_distribution")]
-
-        if self.rotate:
-            dist = exposure.rotate(dist)
-        return dist
 
 
 # class WaveletModel(ResolvedAmigoModel):
@@ -105,7 +88,7 @@ class ResolvedAmigoModel(AmigoModel):
 #         )
 
 
-class ResolvedDiscoModel(BaseModeller):
+class ResolvedDiscoModel(BaseResolvedModel):
     """
     A class to hold the parameters of a resolved source model to be used in fitting
     to DISCO data.
@@ -147,25 +130,6 @@ class ResolvedDiscoModel(BaseModeller):
         The pixel scale of the image plane, in radians per pixel.
         """
         return dlu.arcsec2rad(self.psf_pixel_scale / self.oversample)
-
-    def get_distribution(self, exposure, rotate=True):
-        """
-        Get the distribution from the exposure.
-
-        Args:
-            exposure: The exposure object containing the distribution key.
-        Returns:
-            Array: The intensity distribution of the source.
-        """
-        distribution = 10 ** self.params["log_dist"][exposure.get_key("log_dist")]
-        if rotate:
-            distribution = exposure.rotate(distribution)
-
-        return distribution
-
-    def __call__(self, exposure, rotate=True):
-        """ """
-        return self.get_distribution(exposure, rotate=rotate)
 
 
 class MCADiscoModel(ResolvedDiscoModel):
@@ -209,7 +173,7 @@ class MCADiscoModel(ResolvedDiscoModel):
             psf_pixel_scale,
         )
 
-    def get_distribution(self, exposure, rotate=False, with_star=True):
+    def get_distribution(self, exposure, rotate=True, with_star=True):
         """
         Get the distribution from the exposure.
 
