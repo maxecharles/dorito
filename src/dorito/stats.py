@@ -89,9 +89,9 @@ def L1(model, exposure):
     return L1_loss(source)
 
 
-def L1_on_wavelets(model, exposure):
-    details = model.details[exposure.get_key("details")]
-    return L1_loss(details)
+# def L1_on_wavelets(model, exposure):
+#     details = model.details[exposure.get_key("details")]
+#     return L1_loss(details)
 
 
 def L2(model, exposure):
@@ -114,17 +114,17 @@ def ME(model, exposure):
     return ME_loss(model.get_distribution(exposure))
 
 
-def normalise_wavelets(model_params, args):
-    params = model_params.params
+# def normalise_wavelets(model_params, args):
+#     params = model_params.params
 
-    if "wavelets" not in params.keys():
-        return model_params, args
+#     if "wavelets" not in params.keys():
+#         return model_params, args
 
-    for k, wavelets in params["wavelets"].items():
-        wavelets = wavelets.normalise()
-        params["wavelets"][k] = wavelets
+#     for k, wavelets in params["wavelets"].items():
+#         wavelets = wavelets.normalise()
+#         params["wavelets"][k] = wavelets
 
-    return model_params.set("params", params), args
+#     return model_params.set("params", params), args
 
 
 # def lcurve_sweep(
