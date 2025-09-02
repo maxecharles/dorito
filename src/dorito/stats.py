@@ -49,6 +49,20 @@ def ramp_regularised_loss_fn(model, exp, args={"reg_dict": {}}):
     return likelihood + prior, ()
 
 
+def ramp_posterior_balance(model, exp, args={"reg_dict": {}}):
+    # this is per exposure
+    # NOTE this might not work for multiple regularisers
+
+    # regular likelihood term
+    likelihood = -np.nanmean(exp.mv_zscore(model))
+
+    # evaluating the regularisation term with each for each regulariser
+    priors = [fun(model, exp) for _, fun in args["reg_dict"].values()]
+    prior = np.array(priors).sum() if not exp.calibrator else 0.0
+
+    return {"likelihood": likelihood, "prior": prior, "args": args, "exp_key": exp.key}
+
+
 # def L1_loss(arr):
 #     """
 #     L1 Norm loss function.
