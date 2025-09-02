@@ -58,9 +58,21 @@ def ramp_posterior_balance(model, exp, args={"reg_dict": {}}):
 
     # evaluating the regularisation term with each for each regulariser
     priors = [fun(model, exp) for _, fun in args["reg_dict"].values()]
-    prior = np.array(priors).sum() if not exp.calibrator else 0.0
+    prior = np.array(priors).sum()
 
-    return {"likelihood": likelihood, "prior": prior, "args": args, "exp_key": exp.key}
+    return likelihood, prior
+
+
+def ramp_posterior_balances(model, exposures, args={"reg_dict": {}}):
+
+    balances = np.array([ramp_posterior_balance(model, exp, args) for exp in exposures]).T
+
+    return {
+        "likelihoods": balances[0],
+        "priors": balances[1],
+        "exp_keys": [exp.key for exp in exposures],
+        "args": args,
+    }
 
 
 # def L1_loss(arr):
