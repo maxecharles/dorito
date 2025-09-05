@@ -2,6 +2,8 @@ from amigo.core_models import BaseModeller, AmigoModel
 
 # core jax
 from jax import Array, numpy as np, tree as jtu
+import equinox as eqx
+from zodiax import Base
 import dLux.utils as dlu
 from scipy.ndimage import binary_dilation
 
@@ -332,6 +334,81 @@ class MCADiscoModel(ResolvedDiscoModel):
         else:
             distribution = resolved_component
 
+        if rotate:
+            distribution = exposure.rotate(distribution)
+
+        return distribution
+
+
+class ImageBasis(Base):
+
+    M: Array
+    M_inv: Array
+    n_basis: int = eqx.field(static=True)
+    size: int = eqx.field(static=True)
+
+    def __init__(self, basis_dict: dict, n_basis: int):
+        self.n_basis = n_basis
+        self.M = basis_dict["eigvecs"][:, :n_basis]
+        self.M_inv = np.linalg.pinv(self.M)
+        self.size = int(np.sqrt(self.M.shape[0]))
+
+    def to_eigenbasis(self, img: Array) -> Array:
+        return np.dot(self.M_inv, img.flatten())
+
+    def from_eigenbasis(self, coeffs: Array) -> Array:
+        return np.dot(self.M, coeffs).reshape((self.size, self.size))
+
+
+class TransformedResolvedModel(ResolvedAmigoModel):
+
+    basis: None
+
+    def __init__(
+        self,
+        exposures,
+        optics,
+        detector,
+        ramp_model,
+        read,
+        basis: ImageBasis,
+        state,
+        source_oversample=1,
+        param_initers: dict = None,
+    ):
+
+        # This seems to fix some recompile issues
+        def fn(x):
+            if isinstance(x, Array):
+                if "i" in x.dtype.str:
+                    return x
+                return np.array(x, dtype=float)
+            return x
+
+        self.basis = jtu.map(lambda x: fn(x), basis)
+
+        super().__init__(
+            exposures,
+            optics,
+            detector,
+            ramp_model,
+            read,
+            state,
+            source_oversample,
+            param_initers,
+        )
+
+    def get_distribution(self, exposure, rotate=True):
+        """
+        Get the distribution from the exposure.
+
+        Args:
+            exposure: The exposure object containing the distribution key.
+        Returns:
+            Array: The intensity distribution of the source.
+        """
+        coeffs = self.params["log_dist"][exposure.get_key("log_dist")]
+        distribution = self.basis.from_eigenbasis(coeffs)
         if rotate:
             distribution = exposure.rotate(distribution)
 

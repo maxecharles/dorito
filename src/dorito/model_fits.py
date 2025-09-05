@@ -443,3 +443,29 @@ class MCAOIFit(ResolvedOIFit):
 
     def __call__(self, model, rotate=False):
         return super().__call__(model, rotate=rotate)
+
+
+class TransformedResolvedFit(ResolvedFit):
+    """
+    Model fit for resolved sources. This adds the log distribution parameter.
+    """
+
+    def initialise_params(self, optics, coeffs):
+        """
+        Initialise the parameters for the resolved source model fit.
+        The log distribution is set to a uniform distribution specified by the source size.
+
+        Args:
+            optics: The optics object (to pass to the parent class).
+            source_size: The size of the source distribution (assumed square).
+
+        Returns:
+            params: A dictionary containing the initialised parameters for the model fit.
+        """
+
+        params = ModelFit.initialise_params(self, optics)
+
+        # log distribution
+        params["log_dist"] = (self.get_key("log_dist"), coeffs)
+
+        return params
