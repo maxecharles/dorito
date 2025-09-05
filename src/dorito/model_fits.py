@@ -81,7 +81,7 @@ class ResolvedFit(ModelFit, BaseResolvedFit):
 
         return params
 
-    def simulate(self, model, return_slopes=True, rotate=True):
+    def simulate(self, model, return_slopes: bool = True, rotate: bool = None):
         # model = self.nuke_pixel_grads(model)
         psf = self.model_psf(model)
 
@@ -384,7 +384,7 @@ class ResolvedOIFit(OIFit, BaseResolvedFit):
         # Normalise the image
         return dirty_image / dirty_image.sum()
 
-    def __call__(self, model, rotate=True):
+    def __call__(self, model, rotate: bool = None):
         """
         Simulate the DISCOs from the resolved source distribution.
         This method retrieves the distribution from the model, optionally rotates it,

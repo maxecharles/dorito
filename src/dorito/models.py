@@ -8,9 +8,11 @@ import dLux.utils as dlu
 from scipy.ndimage import binary_dilation
 
 
-class BaseResolvedModel:
+class _BaseResolvedModel(Base):
 
-    def get_distribution(self, exposure, rotate=True):
+    rotate: bool = True
+
+    def get_distribution(self, exposure, rotate: bool = None):
         """
         Get the distribution from the exposure.
 
@@ -20,27 +22,37 @@ class BaseResolvedModel:
             Array: The intensity distribution of the source.
         """
         distribution = 10 ** self.params["log_dist"][exposure.get_key("log_dist")]
+        if rotate is None:
+            rotate = self.rotate
         if rotate:
             distribution = exposure.rotate(distribution)
 
         return distribution
 
-    def __call__(self, exposure, rotate=True):
+    def __call__(self, exposure):
         """ """
-        return self.get_distribution(exposure, rotate=rotate)
+        return self.get_distribution(exposure)
 
 
 # Rewriting the parameter initialisation to allow for custom initialisers
 class _AmigoModel(AmigoModel):
 
     def __init__(
-        self, exposures, optics, detector, ramp_model, read, state=None, param_initers: dict = None
+        self,
+        exposures,
+        optics,
+        detector,
+        ramp_model,
+        read,
+        state=None,
+        param_initers: dict = None,
     ):
         if state is not None:
             optics = optics.set("transmission", state["transmission"])
             detector = detector.set("jitter", state["jitter"])
             ramp_model = ramp_model.set(
-                ["FF", "SRF", "nn_weights"], [state["FF"], state["SRF"], state["nn_weights"]]
+                ["FF", "SRF", "nn_weights"],
+                [state["FF"], state["SRF"], state["nn_weights"]],
             )
             read = read.set(
                 ["dark_current", "non_linearity"],
@@ -95,7 +107,7 @@ class _AmigoModel(AmigoModel):
         self.vis_model = None
 
 
-class ResolvedAmigoModel(_AmigoModel, BaseResolvedModel):
+class ResolvedAmigoModel(_AmigoModel, _BaseResolvedModel):
     """
     Amigo model for resolved sources.
     """
@@ -110,10 +122,11 @@ class ResolvedAmigoModel(_AmigoModel, BaseResolvedModel):
         ramp_model,
         read,
         state,
+        rotate: bool = True,
         source_oversample=1,
         param_initers: dict = None,
     ):
-
+        self.rotate = rotate
         self.source_oversample = source_oversample
 
         super().__init__(exposures, optics, detector, ramp_model, read, state, param_initers)
@@ -134,6 +147,7 @@ class MCAModel(ResolvedAmigoModel):
         read,
         state,
         param_initers: dict,
+        rotate=True,
         source_oversample=1,
         moat_width: int = 0,
     ):
@@ -162,11 +176,12 @@ class MCAModel(ResolvedAmigoModel):
             ramp_model=ramp_model,
             read=read,
             state=state,
+            rotate=rotate,
             source_oversample=source_oversample,
             param_initers=param_initers,
         )
 
-    def get_distribution(self, exposure, rotate=True, with_star=True):
+    def get_distribution(self, exposure, rotate: bool = None, with_star: bool = True):
         """
         Get the distribution from the exposure.
 
@@ -188,6 +203,8 @@ class MCAModel(ResolvedAmigoModel):
         else:
             distribution = resolved_component
 
+        if rotate is None:
+            rotate = self.rotate
         if rotate:
             distribution = exposure.rotate(distribution)
 
@@ -231,7 +248,7 @@ class MCAModel(ResolvedAmigoModel):
 #         )
 
 
-class ResolvedDiscoModel(BaseResolvedModel):
+class ResolvedDiscoModel(_BaseResolvedModel):
     """
     A class to hold the parameters of a resolved source model to be used in fitting
     to DISCO data.
@@ -250,12 +267,14 @@ class ResolvedDiscoModel(BaseResolvedModel):
         uv_pscale: float,
         oversample: float = 1.0,
         psf_pixel_scale: float = 0.065524085,  # arcsec/pixel
+        rotate: bool = True,
     ):
 
         self.uv_npixels = uv_npixels
         self.oversample = oversample
         self.uv_pscale = uv_pscale
         self.psf_pixel_scale = psf_pixel_scale
+        self.rotate = rotate
 
         params = {}
         for oi in ois:
@@ -290,6 +309,7 @@ class MCADiscoModel(ResolvedDiscoModel):
         oversample: float = 1.0,
         psf_pixel_scale: float = 0.065524085,  # arcsec/pixel
         moat_width: int = 3,
+        rotate=True,
     ):
 
         dist_shape = distribution.shape
@@ -310,9 +330,10 @@ class MCADiscoModel(ResolvedDiscoModel):
             uv_pscale,
             oversample,
             psf_pixel_scale,
+            rotate,
         )
 
-    def get_distribution(self, exposure, rotate=False, with_star=True):
+    def get_distribution(self, exposure, rotate: bool = None, with_star: bool = True):
         """
         Get the distribution from the exposure.
 
@@ -334,6 +355,8 @@ class MCADiscoModel(ResolvedDiscoModel):
         else:
             distribution = resolved_component
 
+        if rotate is None:
+            rotate = self.rotate
         if rotate:
             distribution = exposure.rotate(distribution)
 
@@ -375,6 +398,7 @@ class TransformedResolvedModel(ResolvedAmigoModel):
         state,
         source_oversample=1,
         param_initers: dict = None,
+        rotate: bool = True,
     ):
 
         # This seems to fix some recompile issues
@@ -394,11 +418,12 @@ class TransformedResolvedModel(ResolvedAmigoModel):
             ramp_model,
             read,
             state,
+            rotate,
             source_oversample,
             param_initers,
         )
 
-    def get_distribution(self, exposure, rotate=True):
+    def get_distribution(self, exposure, rotate: bool = None):
         """
         Get the distribution from the exposure.
 
@@ -409,6 +434,8 @@ class TransformedResolvedModel(ResolvedAmigoModel):
         """
         coeffs = self.params["log_dist"][exposure.get_key("log_dist")]
         distribution = self.basis.from_eigenbasis(coeffs)
+        if rotate is None:
+            rotate = self.rotate
         if rotate:
             distribution = exposure.rotate(distribution)
 
