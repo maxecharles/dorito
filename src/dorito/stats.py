@@ -90,25 +90,41 @@ def ramp_posterior_balances(model, exposures, args={"reg_dict": {}}):
 #     return np.nansum(arr**2)
 
 
-def TV_loss(arr):
+# def TV_loss(arr):
+#     """
+#     Total variation loss function.
+#     """
+#     pad_arr = np.pad(arr, 2)  # padding
+#     dx = np.diff(pad_arr[0:-1, :])
+#     dy = np.diff(pad_arr[:, 0:-1])
+#     return dx.sum() + dy.sum()
+#     # return np.sqrt(dx[:, :-1] ** 2 + dy[:-1, :] ** 2).sum()
+
+
+def tikhinov(arr):
     """
-    Total variation loss function.
+    https://www-users.cse.umn.edu/~jwcalder/5467/lec_tv_denoising.pdf
     """
     pad_arr = np.pad(arr, 2)  # padding
-    dx = np.diff(pad_arr[0:-1, :])
-    dy = np.diff(pad_arr[:, 0:-1])
-    return dx.sum() + dy.sum()
-    # return np.sqrt(dx[:, :-1] ** 2 + dy[:-1, :] ** 2).sum()
+    dx = np.diff(pad_arr[0:-1, :], axis=1)
+    dy = np.diff(pad_arr[:, 0:-1], axis=0)
+    return dx**2 + dy**2
+
+
+
+def TV_loss(arr, eps=1e-16):
+    """
+    Approximation of the L1 norm of the gradient of the image.
+    """
+    return np.sqrt(tikhinov(arr) + eps**2).sum()
+    
 
 
 def TSV_loss(arr):
     """
     Quadratic variation loss function.
     """
-    pad_arr = np.pad(arr, 2)  # padding
-    dx = np.diff(pad_arr[0:-1, :], axis=1)
-    dy = np.diff(pad_arr[:, 0:-1], axis=0)
-    return np.sum(dx**2 + dy**2)
+    return tikhinov(arr).sum()
 
 
 def ME_loss(arr, eps=1e-16):
