@@ -100,6 +100,19 @@ class ResolvedFit(ModelFit, BaseResolvedFit):
         return ramp
 
 
+class DynamicResolvedFit(ResolvedFit):
+    """
+    Model fit for resolved sources where each exposure has a different
+    intensity distribution.
+    """
+
+    def get_key(self, param):
+        match param:
+            case "log_dist":
+                return "_".join([self.key, self.filter])
+
+        return super().get_key(param)
+
 class MCAFit(ResolvedFit):
 
     def initialise_params(self, optics, moat, distribution, contrast):
