@@ -8,7 +8,7 @@ import dLux.utils as dlu
 from scipy.ndimage import binary_dilation
 
 
-class _BaseResolvedModel(Base):
+class _BaseResolvedModel(BaseModeller):
 
     rotate: bool = True
 
@@ -34,8 +34,10 @@ class _BaseResolvedModel(Base):
         return self.get_distribution(exposure)
 
 
-# Rewriting the parameter initialisation to allow for custom initialisers
 class _AmigoModel(AmigoModel):
+    """
+    Rewriting the parameter initialisation to allow for custom initialisers
+    """
 
     def __init__(
         self,
