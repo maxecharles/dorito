@@ -125,9 +125,9 @@ def plot_result(
 
         rotation_transform = (
             mpl.transforms.Affine2D()
-            .translate(*translate)
             .rotate_deg(roll_angle_degrees)
             .scale(scale)
+            .translate(*translate)
         )  # Create a rotation transformation
         trans_data = rotation_transform + ax.transData  # creating transformation
         im.set_transform(trans_data)  # applying transformation to image

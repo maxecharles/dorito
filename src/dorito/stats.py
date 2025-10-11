@@ -1,4 +1,5 @@
 from jax import numpy as np
+from .models import MCAModel, MCADiscoModel
 
 
 def oi_log_likelihood(model, oi):
@@ -24,7 +25,7 @@ def apply_regularisers(model, exposure, args):
     return np.array(priors).sum()
 
 
-def regularised_loss_fn(model, exposure, args={"reg_func_dict": {}, "reg_dict": {}}):
+def disco_regularised_loss_fn(model, exposure, args={"reg_dict": {}}):
     # this is per exposure
 
     # regular likelihood term
@@ -36,40 +37,94 @@ def regularised_loss_fn(model, exposure, args={"reg_func_dict": {}, "reg_dict": 
     return likelihood + prior, ()
 
 
-def L1_loss(arr):
-    """
-    L1 Norm loss function.
-    """
-    return np.nansum(np.abs(arr))
+def ramp_regularised_loss_fn(model, exp, args={"reg_dict": {}}):
+    # this is per exposure
+
+    # regular likelihood term
+    likelihood = -np.nanmean(exp.mv_zscore(model))
+
+    # grabbing and exponentiating log distributions
+    prior = apply_regularisers(model, exp, args) if not exp.calibrator else 0.0
+
+    return likelihood + prior, ()
 
 
-def L2_loss(arr):
-    """
-    L2 Norm loss function.
-    """
-    # TODO - check if this is correct
-    return np.nansum(arr**2)
+def ramp_posterior_balance(model, exp, args={"reg_dict": {}}):
+    # this is per exposure
+    # NOTE this might not work for multiple regularisers
+
+    # regular likelihood term
+    likelihood = -np.nanmean(exp.mv_zscore(model))
+
+    # evaluating the regularisation term with each for each regulariser
+    priors = [fun(model, exp) for _, fun in args["reg_dict"].values()]
+    prior = np.array(priors).sum()
+
+    return likelihood, prior
 
 
-def TV_loss(arr):
+def ramp_posterior_balances(model, exposures, args={"reg_dict": {}}):
+
+    balances = np.array([ramp_posterior_balance(model, exp, args) for exp in exposures]).T
+
+    return {
+        "likelihoods": balances[0],
+        "priors": balances[1],
+        "exp_keys": [exp.key for exp in exposures],
+        "args": args,
+    }
+
+
+# def L1_loss(arr):
+#     """
+#     L1 Norm loss function.
+#     """
+#     return np.nansum(np.abs(arr))
+
+
+# def L2_loss(arr):
+#     """
+#     L2 Norm loss function.
+#     """
+#     # TODO - check if this is correct
+#     return np.nansum(arr**2)
+
+
+# def TV_loss(arr):
+#     """
+#     Total variation loss function.
+#     """
+#     pad_arr = np.pad(arr, 2)  # padding
+#     dx = np.diff(pad_arr[0:-1, :])
+#     dy = np.diff(pad_arr[:, 0:-1])
+#     return dx.sum() + dy.sum()
+#     # return np.sqrt(dx[:, :-1] ** 2 + dy[:-1, :] ** 2).sum()
+
+
+def tikhinov(arr):
     """
-    Total variation loss function.
+    https://www-users.cse.umn.edu/~jwcalder/5467/lec_tv_denoising.pdf
     """
     pad_arr = np.pad(arr, 2)  # padding
-    dx = np.diff(pad_arr[0:-1, :])
-    dy = np.diff(pad_arr[:, 0:-1])
-    return dx.sum() + dy.sum()
-    # return np.sqrt(dx[:, :-1] ** 2 + dy[:-1, :] ** 2).sum()
+    dx = np.diff(pad_arr[0:-1, :], axis=1)
+    dy = np.diff(pad_arr[:, 0:-1], axis=0)
+    return dx**2 + dy**2
+
+
+
+def TV_loss(arr, eps=1e-16):
+    """
+    Approximation of the L1 norm of the gradient of the image.
+    """
+    return np.sqrt(tikhinov(arr) + eps**2).sum()
+    
 
 
 def TSV_loss(arr):
     """
     Quadratic variation loss function.
     """
-    pad_arr = np.pad(arr, 2)  # padding
-    dx = np.diff(pad_arr[0:-1, :], axis=1)
-    dy = np.diff(pad_arr[:, 0:-1], axis=0)
-    return np.sum(dx**2 + dy**2)
+    return tikhinov(arr).sum()
 
 
 def ME_loss(arr, eps=1e-16):
@@ -81,50 +136,58 @@ def ME_loss(arr, eps=1e-16):
     return -S
 
 
-def L1(model, exposure):
-    flux = 10 ** model.fluxes[exposure.get_key("fluxes")]
-    distribution = model.get_distribution(exposure)
-    source = flux * distribution
+def get_distribution(model, exposure):
 
-    return L1_loss(source)
-
-
-def L1_on_wavelets(model, exposure):
-    details = model.details[exposure.get_key("details")]
-    return L1_loss(details)
+    if isinstance(model, MCAModel) or isinstance(model, MCADiscoModel):
+        return model.get_distribution(exposure, with_star=False)
+    else:
+        return model.get_distribution(exposure)
 
 
-def L2(model, exposure):
-    flux = 10 ** model.fluxes[exposure.get_key("fluxes")]
-    distribution = model.get_distribution(exposure)
-    source = flux * distribution
+# def L1(model, exposure):
+#     flux = 10 ** model.fluxes[exposure.get_key("fluxes")]
+#     distribution = model.get_distribution(exposure)
+#     source = flux * distribution
 
-    return L2_loss(source)
+#     return L1_loss(source)
+
+
+# def L1_on_wavelets(model, exposure):
+#     details = model.details[exposure.get_key("details")]
+#     return L1_loss(details)
+
+
+# def L2(model, exposure):
+#     flux = 10 ** model.fluxes[exposure.get_key("fluxes")]
+#     distribution = model.get_distribution(exposure)
+#     source = flux * distribution
+
+#     return L2_loss(source)
 
 
 def TV(model, exposure):
-    return TV_loss(model.get_distribution(exposure))
+    return TV_loss(get_distribution(model, exposure))
 
 
 def TSV(model, exposure):
-    return TSV_loss(model.get_distribution(exposure))
+    return TSV_loss(get_distribution(model, exposure))
 
 
 def ME(model, exposure):
-    return ME_loss(model.get_distribution(exposure))
+    return ME_loss(get_distribution(model, exposure))
 
 
-def normalise_wavelets(model_params, args):
-    params = model_params.params
+# def normalise_wavelets(model_params, args):
+#     params = model_params.params
 
-    if "wavelets" not in params.keys():
-        return model_params, args
+#     if "wavelets" not in params.keys():
+#         return model_params, args
 
-    for k, wavelets in params["wavelets"].items():
-        wavelets = wavelets.normalise()
-        params["wavelets"][k] = wavelets
+#     for k, wavelets in params["wavelets"].items():
+#         wavelets = wavelets.normalise()
+#         params["wavelets"][k] = wavelets
 
-    return model_params.set("params", params), args
+#     return model_params.set("params", params), args
 
 
 # def lcurve_sweep(

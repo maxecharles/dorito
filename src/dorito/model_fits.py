@@ -41,10 +41,7 @@ class ResolvedFit(ModelFit, BaseResolvedFit):
     Model fit for resolved sources. This adds the log distribution parameter.
     """
 
-    source_size: int
-
-    def __init__(self, file, source_size, use_cov=True):
-        self.source_size = int(source_size)
+    def __init__(self, file, use_cov=True):
         return super().__init__(file, use_cov=use_cov)
 
     def get_key(self, param):
@@ -61,7 +58,7 @@ class ResolvedFit(ModelFit, BaseResolvedFit):
 
         return super().map_param(param)
 
-    def initialise_params(self, optics):
+    def initialise_params(self, optics, distribution):
         """
         Initialise the parameters for the resolved source model fit.
         The log distribution is set to a uniform distribution specified by the source size.
@@ -79,12 +76,12 @@ class ResolvedFit(ModelFit, BaseResolvedFit):
         # log distribution
         params["log_dist"] = (
             self.get_key("log_dist"),
-            np.log10(np.ones((self.source_size, self.source_size)) / self.source_size**2),
+            np.log10(distribution / distribution.sum()),
         )
 
         return params
 
-    def simulate(self, model, return_slopes=True, rotate=True):
+    def simulate(self, model, return_slopes: bool = True, rotate: bool = None):
         # model = self.nuke_pixel_grads(model)
         psf = self.model_psf(model)
 
@@ -101,6 +98,55 @@ class ResolvedFit(ModelFit, BaseResolvedFit):
         if return_slopes:
             return ramp.set("data", np.diff(ramp.data, axis=0))
         return ramp
+
+
+class DynamicResolvedFit(ResolvedFit):
+    """
+    Model fit for resolved sources where each exposure has a different
+    intensity distribution.
+    """
+
+    def get_key(self, param):
+        match param:
+            case "log_dist":
+                return "_".join([self.key, self.filter])
+
+        return super().get_key(param)
+
+class MCAFit(ResolvedFit):
+
+    def initialise_params(self, optics, moat, distribution, contrast):
+
+        params = ModelFit.initialise_params(self, optics)
+
+        # resolved component distributino
+        distribution = (distribution.flatten())[~moat]
+        distribution *= (1 - contrast) / distribution.sum()  # normalise the distribution
+
+        log_dist = np.log10(distribution)
+        params["log_dist"] = self.get_key("log_dist"), log_dist
+
+        # the star component
+        params["contrast"] = self.get_key("contrast"), np.array(contrast)
+
+        return params
+
+    def get_key(self, param):
+
+        match param:
+            case "contrast":
+                return self.filter
+
+        return super().get_key(param)
+
+    def map_param(self, param):
+
+        # Map the appropriate parameter to the correct key
+        if param in ["contrast"]:
+            return f"{param}.{self.get_key(param)}"
+
+        # Else its global
+        return super().map_param(param)
 
 
 # class WaveletFit(ResolvedFit):
@@ -351,7 +397,7 @@ class ResolvedOIFit(OIFit, BaseResolvedFit):
         # Normalise the image
         return dirty_image / dirty_image.sum()
 
-    def __call__(self, model, rotate=True):
+    def __call__(self, model, rotate: bool = None):
         """
         Simulate the DISCOs from the resolved source distribution.
         This method retrieves the distribution from the model, optionally rotates it,
@@ -371,10 +417,7 @@ class ResolvedOIFit(OIFit, BaseResolvedFit):
 
 class MCAOIFit(ResolvedOIFit):
 
-    def initialise_params(self, model, source_dict: dict):
-
-        distribution = source_dict["distribution"]
-        contrast = source_dict["contrast"]
+    def initialise_params(self, model, distribution, contrast=0.949):
 
         params = {}  # Initialise an empty dictionary for parameters
 
@@ -404,11 +447,38 @@ class MCAOIFit(ResolvedOIFit):
     def map_param(self, param):
 
         # Map the appropriate parameter to the correct key
-        if param in ["log_dist", "base_uv", "contrast"]:
-            return f"{param}.{self.get_key(param)}"
+        match param:
+            case "contrast":
+                return f"{param}.{self.get_key(param)}"
 
         # Else its global
-        return param
+        return super().map_param(param)
 
     def __call__(self, model, rotate=False):
         return super().__call__(model, rotate=rotate)
+
+
+class TransformedResolvedFit(ResolvedFit):
+    """
+    Model fit for resolved sources. This adds the log distribution parameter.
+    """
+
+    def initialise_params(self, optics, coeffs):
+        """
+        Initialise the parameters for the resolved source model fit.
+        The log distribution is set to a uniform distribution specified by the source size.
+
+        Args:
+            optics: The optics object (to pass to the parent class).
+            source_size: The size of the source distribution (assumed square).
+
+        Returns:
+            params: A dictionary containing the initialised parameters for the model fit.
+        """
+
+        params = ModelFit.initialise_params(self, optics)
+
+        # log distribution
+        params["log_dist"] = (self.get_key("log_dist"), coeffs)
+
+        return params
