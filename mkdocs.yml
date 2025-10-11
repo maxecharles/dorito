@@ -1,0 +1,10 @@
+site_name: dorito
+site_url: https://mydomain.org/mysite
+docs_dir: docs
+site_description: Documentation for dorito.
+site_author: Max Charles
+site_url: https://maxecharles.github.io/dorito/
+repo_url: https://github.com/maxecharles/dorito
+repo_name: maxecharles/dorito
+theme:
+  name: material
