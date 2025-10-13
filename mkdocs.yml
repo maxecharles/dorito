@@ -1,10 +1,90 @@
 site_name: dorito
-site_url: https://mydomain.org/mysite
-docs_dir: docs
+docs_dir: .
 site_description: Documentation for dorito.
 site_author: Max Charles
 site_url: https://maxecharles.github.io/dorito/
 repo_url: https://github.com/maxecharles/dorito
 repo_name: maxecharles/dorito
+edit_uri: "" 
+
+strict: false  # Allow warnings during the build process (change later)
+
+plugins:
+  # - mkdocs-jupyter
+  - search
+  - same-dir
+  - autorefs
+  - simple:
+      ignore_folders:
+        - tests
+        - zodiax
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+            docstring_style: "numpy"
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.arithmatex:  # Render LaTeX via MathJax
+      generic: true
+  - pymdownx.snippets:  # Include one Markdown file into another
+      base_path: docs
+  - admonition
+  - toc:
+      permalink: "¤"  # Adds a clickable permalink to each section heading
+      toc_depth: 4
+  - def_list
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - attr_list # Allows images
+  - md_in_html # Allows images
+
+extra_javascript: # Used for MathJax
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
 theme:
+  icon:
+    repo: fontawesome/brands/github
+    logo: fontawesome/solid/person-digging
+    # logo: octicons/moon-16
   name: material
+  features:
+    # - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.indexes 
+    - navigation.top
+    - content.code.copy
+    # - navigation.tabs # Adds tabs for High Level settings
+    # - navigation.tabs.sticky
+    - toc.integrate  # Table of contents is integrated on the left; does not appear separately on the right.
+    # - toc.integrate
+    # - content.action.view
+  palette:
+    # Light mode / dark mode
+    # We deliberately don't automatically use `media` to check a user's preferences. We default to light mode as
+    # (a) it looks more professional, and (b) is more obvious about the fact that it offers a (dark mode) toggle.
+    - scheme: slate
+      primary: deep orange
+      accent: light blue
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+    - scheme: default
+      primary: orange
+      accent: blue
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+
+nav:
+  - Home: README.md
+  # - Examples:
+  #     - Image Plane Fitting: docs/examples/image_plane_fitting.md
+  # - API:
