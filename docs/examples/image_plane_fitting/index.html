@@ -12,22 +12,24 @@
         <meta name="author" content="Max Charles">
       
       
+        <link rel="canonical" href="https://maxecharles.github.io/dorito/docs/examples/image_plane_fitting/">
       
       
       
-      <link rel="icon" href="/dorito/assets/images/favicon.png">
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.21">
     
     
       
-        <title>dorito</title>
+        <title>Image plane fitting - dorito</title>
       
     
     
-      <link rel="stylesheet" href="/dorito/assets/stylesheets/main.2a3383ac.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.2a3383ac.min.css">
       
         
-        <link rel="stylesheet" href="/dorito/assets/stylesheets/palette.06af60db.min.css">
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.06af60db.min.css">
       
       
 
@@ -46,9 +48,9 @@
       
     
     
-      <link rel="stylesheet" href="/dorito/assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
     
-    <script>__md_scope=new URL("/dorito/",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -85,7 +87,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="/dorito/." title="dorito" class="md-header__button md-logo" aria-label="dorito" data-md-component="logo">
+    <a href="../../.." title="dorito" class="md-header__button md-logo" aria-label="dorito" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 7.0.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M208 40a56 56 0 1 1 112 0 56 56 0 1 1-112 0M10.5 181.3c5.9-11.9 20.3-16.7 32.2-10.7l24.6 12.3 12.2-20.4C98.4 131 132.7 112 169.1 112c46.2 0 87.7 30.5 100.5 75.4l32.2 112.7 92.9 46.4 25.8-43c5.8-9.6 16.2-15.5 27.4-15.5s21.7 5.9 27.4 15.5l96 160c5.9 9.9 6.1 22.2.4 32.2S555.5 512 544 512H352c-11.5 0-22.2-6.2-27.8-16.2s-5.5-22.3.4-32.2l45.4-75.8L21.3 213.5c-11.9-5.9-16.7-20.3-10.7-32.2zm83.8 126.1 112 56c10.8 5.4 17.7 16.5 17.7 28.6v88c0 17.7-14.3 32-32 32s-32-14.3-32-32v-68.2l-61.3-30.7-36.3 109c-5.6 16.8-23.7 25.8-40.5 20.2s-25.8-23.7-20.2-40.4l48-144c2.9-8.8 9.5-15.9 18.1-19.4s18.3-3.2 26.6.9z"/></svg>
@@ -105,7 +107,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              
+              Image plane fitting
             
           </span>
         </div>
@@ -223,7 +225,7 @@
 
 <nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="/dorito/." title="dorito" class="md-nav__button md-logo" aria-label="dorito" data-md-component="logo">
+    <a href="../../.." title="dorito" class="md-nav__button md-logo" aria-label="dorito" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 7.0.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M208 40a56 56 0 1 1 112 0 56 56 0 1 1-112 0M10.5 181.3c5.9-11.9 20.3-16.7 32.2-10.7l24.6 12.3 12.2-20.4C98.4 131 132.7 112 169.1 112c46.2 0 87.7 30.5 100.5 75.4l32.2 112.7 92.9 46.4 25.8-43c5.8-9.6 16.2-15.5 27.4-15.5s21.7 5.9 27.4 15.5l96 160c5.9 9.9 6.1 22.2.4 32.2S555.5 512 544 512H352c-11.5 0-22.2-6.2-27.8-16.2s-5.5-22.3.4-32.2l45.4-75.8L21.3 213.5c-11.9-5.9-16.7-20.3-10.7-32.2zm83.8 126.1 112 56c10.8 5.4 17.7 16.5 17.7 28.6v88c0 17.7-14.3 32-32 32s-32-14.3-32-32v-68.2l-61.3-30.7-36.3 109c-5.6 16.8-23.7 25.8-40.5 20.2s-25.8-23.7-20.2-40.4l48-144c2.9-8.8 9.5-15.9 18.1-19.4s18.3-3.2 26.6.9z"/></svg>
@@ -253,7 +255,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/dorito/." class="md-nav__link">
+      <a href="../../.." class="md-nav__link">
         
   
   
@@ -280,8 +282,26 @@
             <div class="md-content" data-md-component="content">
               <article class="md-content__inner md-typeset">
                 
-  <h1>404 - Not found</h1>
+                  
 
+
+
+  <h1>Image plane fitting</h1>
+
+<p>Testing 123</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
               </article>
             </div>
           
@@ -323,12 +343,12 @@
     
     
       
-      <script id="__config" type="application/json">{"base": "/dorito/", "features": ["navigation.expand", "navigation.path", "navigation.indexes", "navigation.top", "content.code.copy", "toc.integrate"], "search": "/dorito/assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"base": "../../..", "features": ["navigation.expand", "navigation.path", "navigation.indexes", "navigation.top", "content.code.copy", "toc.integrate"], "search": "../../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="/dorito/assets/javascripts/bundle.f55a23d4.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.f55a23d4.min.js"></script>
       
-        <script src="/dorito/javascripts/mathjax.js"></script>
+        <script src="../../../javascripts/mathjax.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       
