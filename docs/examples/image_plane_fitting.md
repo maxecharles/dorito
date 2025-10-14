@@ -461,7 +461,7 @@ for exp in exps:
 
 Nice. Some of the parameters are not entirely converged, and this can be improved by running the fit for more epochs, or by passing the fit model to another optimiser. We have seen some success with `optimistix.BFGS`. This is especially true of the `spectra` parameter for Io, where you can see the effect of spectral miscalibration in the residuals. 
 
-But this will do nicely for now — let's see our images! These look slightly under-regularised, as the volcanos are much to close to single points.
+But this will do nicely for now — let's see our images! These look slightly under-regularised, as the volcanoes are much too close to single points.
 
 
 ```python
