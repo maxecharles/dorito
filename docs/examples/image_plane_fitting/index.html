@@ -15,6 +15,8 @@
         <link rel="canonical" href="https://maxecharles.github.io/dorito/docs/examples/image_plane_fitting/">
       
       
+        <link rel="prev" href="../../..">
+      
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
@@ -22,7 +24,7 @@
     
     
       
-        <title>Image plane fitting - dorito</title>
+        <title>Image Plane Fitting - dorito</title>
       
     
     
@@ -75,6 +77,11 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
+        
+        <a href="#io-reconstruction-in-the-image-plane" class="md-skip">
+          Skip to content
+        </a>
+      
     </div>
     <div data-md-component="announce">
       
@@ -107,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Image plane fitting
+              Image Plane Fitting
             
           </span>
         </div>
@@ -270,6 +277,90 @@
   
 
     
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Examples
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Examples
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Image Plane Fitting
+    
+  </span>
+  
+
+      </a>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -286,9 +377,363 @@
 
 
 
-  <h1>Image plane fitting</h1>
+<h1 id="io-reconstruction-in-the-image-plane">Io Reconstruction in the Image Plane<a class="headerlink" href="#io-reconstruction-in-the-image-plane" title="Permanent link">¤</a></h1>
+<p>In this notebook I will run through a basic example of an image reconstruction using Method 1 from the paper.</p>
+<p>First we import our relevant libraries, and enable 64-bit float precision and (optionally) GPU usage.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># jax ecosystem</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jax</span><span class="w"> </span><span class="kn">import</span> <span class="n">numpy</span> <span class="k">as</span> <span class="n">np</span>  <span class="c1"># apologies for this, but once you go jax you never go back</span>
 
-<p>Testing 123</p>
+<span class="n">jax</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s2">&quot;jax_enable_x64&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>  <span class="c1"># using 64-bit precision is necessary</span>
+<span class="n">jax</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s2">&quot;jax_platform_name&quot;</span><span class="p">,</span> <span class="s2">&quot;gpu&quot;</span><span class="p">)</span>  <span class="c1"># for using GPU (optional)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">local_devices</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">device_kind</span><span class="p">)</span>
+</code></pre></div>
+<pre><code>NVIDIA GeForce RTX 2080 Ti
+</code></pre>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">amigo</span>  <span class="c1"># for the amigo base model</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">dorito</span>  <span class="c1"># for image reconstruction</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">zodiax.optimisation</span><span class="w"> </span><span class="kn">import</span> <span class="n">sgd</span><span class="p">,</span> <span class="n">adam</span>  <span class="c1"># for gradient descent</span>
+
+<span class="c1"># other helpful libraries</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dLux</span><span class="w"> </span><span class="kn">import</span> <span class="n">utils</span> <span class="k">as</span> <span class="n">dlu</span>  <span class="c1"># for some optics utils functionality</span>
+
+<span class="c1"># matplotlib ecosystem</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mpl</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s2">&quot;image.cmap&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;inferno&quot;</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s2">&quot;font.family&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;serif&quot;</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s2">&quot;image.origin&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;lower&quot;</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s2">&quot;figure.dpi&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">300</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s2">&quot;font.size&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">8</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s2">&quot;xtick.direction&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;out&quot;</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s2">&quot;ytick.direction&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;out&quot;</span>
+</code></pre></div>
+<pre><code>/home/max/miniforge3/envs/newb/lib/python3.13/site-packages/amigo/optical_models.py:1: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools&lt;81.
+  import pkg_resources as pkg
+</code></pre>
+<h1 id="loading-in">Loading in<a class="headerlink" href="#loading-in" title="Permanent link">¤</a></h1>
+<p>Here we load in the data and relevant files to run the <code>amigo</code> model.</p>
+<div class="highlight"><pre><span></span><code><span class="n">path_to_files</span> <span class="o">=</span> <span class="s2">&quot;/media/morgana1/snert/max/data/&quot;</span>
+
+<span class="c1"># processed &quot;calslope&quot; files from the amigo pipeline</span>
+<span class="n">data_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path_to_files</span><span class="p">,</span> <span class="s2">&quot;JWST/IO/calslope/&quot;</span><span class="p">)</span>
+
+<span class="c1"># amigo files</span>
+<span class="n">model_cache</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path_to_files</span><span class="p">,</span> <span class="s2">&quot;amigo_files/v_0.0.10/&quot;</span><span class="p">)</span>
+<span class="n">fisher_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path_to_files</span><span class="p">,</span> <span class="s2">&quot;amigo_files/fishers/&quot;</span><span class="p">)</span>
+<span class="n">output_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path_to_files</span><span class="p">,</span> <span class="s2">&quot;amigo_files/outputs/IO/&quot;</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Data files:&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">data_path</span><span class="p">),</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Amigo model files:&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">model_cache</span><span class="p">),</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<pre><code>Data files:
+['jw01373017001_04102_00001_nis_calslope.fits', 'jw01373023001_03102_00002_nis_calslope.fits', 'jw01373023001_03102_00003_nis_calslope.fits', 'jw01373023001_03102_00004_nis_calslope.fits', 'jw01373017001_04102_00005_nis_calslope.fits', 'jw01373023001_03102_00001_nis_calslope.fits', 'jw01373017001_04102_00002_nis_calslope.fits', 'jw01373017001_04102_00003_nis_calslope.fits', 'jw01373017001_04102_00004_nis_calslope.fits']
+
+Amigo model files:
+['jacobians.npy', 'calibration.npy', 'vis_basis.npy', 'calibration_2.npy', 'calibration_1.npy', 'im_basis101_1pix_M.npy']
+</code></pre>
+<p>Now we actually load the fits files, and set the bad pixels we want. We also truncate the ramp because the Io data is saturated, and we want to keep the pixel well depth below the data which was used to train the <code>amigo</code> model. </p>
+<div class="highlight"><pre><span></span><code><span class="n">EXP_TYPE</span> <span class="o">=</span> <span class="s2">&quot;NIS_AMI&quot;</span>
+<span class="n">FILTERS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="c1"># &quot;F480M&quot;,</span>
+    <span class="s2">&quot;F430M&quot;</span><span class="p">,</span>  <span class="c1"># Io only had F430M exposures</span>
+    <span class="c1"># &quot;F380M&quot;,</span>
+<span class="p">]</span>
+
+<span class="c1"># Bind file path, type and exposure type</span>
+<span class="n">file_fn</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">data_path</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="n">FILTERS</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">amigo</span><span class="o">.</span><span class="n">files</span><span class="o">.</span><span class="n">get_files</span><span class="p">(</span>
+    <span class="n">data_path</span><span class="p">,</span>
+    <span class="s2">&quot;calslope&quot;</span><span class="p">,</span>
+    <span class="n">EXP_TYPE</span><span class="o">=</span><span class="n">EXP_TYPE</span><span class="p">,</span>
+    <span class="n">FILTER</span><span class="o">=</span><span class="n">FILTERS</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Here we load in the fits files</span>
+<span class="n">files</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+    <span class="n">file_fn</span><span class="p">(</span><span class="n">data_path</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">hdu</span><span class="p">:</span> <span class="n">hdu</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;EXPMID&quot;</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">))</span>
+<span class="p">)</span>
+
+<span class="n">sci_files</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">cal_files</span> <span class="o">=</span> <span class="p">[]</span>
+
+<span class="c1"># Here we manually set bad pixels in the BADPIX extension of the fits files</span>
+<span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+
+    <span class="c1"># manual bad pixel correction</span>
+    <span class="n">file</span><span class="p">[</span><span class="s2">&quot;BADPIX&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">58</span><span class="p">,</span> <span class="mi">67</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">file</span><span class="p">[</span><span class="s2">&quot;BADPIX&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">71</span><span class="p">,</span> <span class="mi">22</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">file</span><span class="p">[</span><span class="s2">&quot;BADPIX&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">65</span><span class="p">,</span> <span class="mi">41</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">file</span><span class="p">[</span><span class="s2">&quot;BADPIX&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">35</span><span class="p">,</span> <span class="mi">70</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">file</span><span class="p">[</span><span class="s2">&quot;BADPIX&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">70</span><span class="p">,</span> <span class="mi">55</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">file</span><span class="p">[</span><span class="s2">&quot;BADPIX&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">file</span><span class="p">[</span><span class="s2">&quot;BADPIX&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="o">-</span><span class="mi">4</span><span class="p">,</span> <span class="mi">37</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">file</span><span class="p">[</span><span class="s2">&quot;BADPIX&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">51</span><span class="p">,</span> <span class="mi">27</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">file</span><span class="p">[</span><span class="s2">&quot;BADPIX&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">28</span><span class="p">,</span> <span class="mi">18</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">file</span><span class="p">[</span><span class="s2">&quot;BADPIX&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">32</span><span class="p">,</span> <span class="mi">10</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="c1"># edge bad pixels</span>
+    <span class="n">file</span><span class="p">[</span><span class="s2">&quot;BADPIX&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">file</span><span class="p">[</span><span class="s2">&quot;BADPIX&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[:,</span> <span class="o">-</span><span class="mi">3</span><span class="p">:]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">file</span><span class="p">[</span><span class="s2">&quot;BADPIX&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">file</span><span class="p">[</span><span class="s2">&quot;BADPIX&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="o">-</span><span class="mi">3</span><span class="p">:,</span> <span class="p">:]</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">bool</span><span class="p">(</span><span class="n">file</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">header</span><span class="p">[</span><span class="s2">&quot;IS_PSF&quot;</span><span class="p">]):</span>
+        <span class="n">file</span><span class="p">[</span><span class="s2">&quot;BADPIX&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">43</span><span class="p">,</span> <span class="mi">45</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">file</span><span class="p">[</span><span class="s2">&quot;BADPIX&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">10</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">file</span><span class="p">[</span><span class="s2">&quot;BADPIX&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[:,</span> <span class="o">-</span><span class="mi">10</span><span class="p">:]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">file</span><span class="p">[</span><span class="s2">&quot;BADPIX&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[:</span><span class="mi">10</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">file</span><span class="p">[</span><span class="s2">&quot;BADPIX&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="o">-</span><span class="mi">10</span><span class="p">:,</span> <span class="p">:]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">sci_files</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">bool</span><span class="p">(</span><span class="n">file</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">header</span><span class="p">[</span><span class="s2">&quot;IS_PSF&quot;</span><span class="p">]):</span>
+        <span class="n">file</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">header</span><span class="p">[</span><span class="s2">&quot;TARGPROP&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;HD 228337&quot;</span>
+        <span class="n">cal_files</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unkown target: </span><span class="si">{</span><span class="n">file</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;TARGPROP&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># Here we truncate the ramp to keen the pixel well depth under 30k</span>
+<span class="n">dorito</span><span class="o">.</span><span class="n">misc</span><span class="o">.</span><span class="n">truncate_files</span><span class="p">(</span><span class="n">sci_files</span><span class="p">,</span> <span class="mi">18</span><span class="p">)</span>
+</code></pre></div>
+<h1 id="building-the-model">Building the model<a class="headerlink" href="#building-the-model" title="Permanent link">¤</a></h1>
+<p>We are going to have to build the exposures. DORITO has a <code>ResolvedFit</code> class build in, however this will jointly fit all exposures from the same filter. Since we want to capture Io's rotation in a time series, we instead want to <em>uniquely</em> fit each epochs. To do this, we will write a child class of <code>ResolvedFit</code> and amend the <code>get_key</code> method. By adding the <code>self.key</code> to the <code>log_dist</code> parameter key, this ensures each exposure will fit a unique distribution. In the <code>ResolvedFit</code> class, it is instead set just to <code>self.filter</code>, which is common for all the exposures and hence they will share the same parameter.</p>
+<p><code>DynamicResolvedFit</code> is also built into <code>dorito</code>, but it is useful to show how the classes are constructed. Once you get comfortable with setting the <code>get_key</code> class, <code>amigo</code> makes it very easy to quickly change the parameter fitting hierarchy.</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">DynamicResolvedFit</span><span class="p">(</span><span class="n">dorito</span><span class="o">.</span><span class="n">model_fits</span><span class="o">.</span><span class="n">ResolvedFit</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Model fit for resolved sources where each exposure has a different</span>
+<span class="sd">    intensity distribution.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_key</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">param</span><span class="p">):</span>
+        <span class="k">match</span> <span class="n">param</span><span class="p">:</span>
+            <span class="k">case</span> <span class="s2">&quot;log_dist&quot;</span><span class="p">:</span>
+                <span class="k">return</span> <span class="s2">&quot;_&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">key</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">filter</span><span class="p">])</span>
+
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">get_key</span><span class="p">(</span><span class="n">param</span><span class="p">)</span>
+</code></pre></div>
+<p>Building the exposures and model. Today, to keep this simple, we will just fit two of the five Io exposures, and use one of the calibrator exposures.</p>
+<div class="highlight"><pre><span></span><code><span class="n">load_dict</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">allow_pickle</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>  <span class="c1"># helper function</span>
+
+<span class="c1"># just two science exposures and one calibrator for this demo</span>
+<span class="n">sci_exps</span> <span class="o">=</span> <span class="p">[</span><span class="n">DynamicResolvedFit</span><span class="p">(</span><span class="n">file</span><span class="p">)</span> <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="n">sci_files</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">]]</span>
+<span class="n">cal_exps</span> <span class="o">=</span> <span class="p">[</span><span class="n">amigo</span><span class="o">.</span><span class="n">model_fits</span><span class="o">.</span><span class="n">PointFit</span><span class="p">(</span><span class="n">file</span><span class="p">)</span> <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="n">cal_files</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">]]</span>
+<span class="n">exps</span> <span class="o">=</span> <span class="n">sci_exps</span> <span class="o">+</span> <span class="n">cal_exps</span>
+
+<span class="c1"># building the model</span>
+<span class="n">source_size</span> <span class="o">=</span> <span class="mi">101</span>  <span class="c1"># pixels</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">dorito</span><span class="o">.</span><span class="n">models</span><span class="o">.</span><span class="n">ResolvedAmigoModel</span><span class="p">(</span>
+    <span class="n">exposures</span><span class="o">=</span><span class="n">exps</span><span class="p">,</span>
+    <span class="n">optics</span><span class="o">=</span><span class="n">amigo</span><span class="o">.</span><span class="n">optical_models</span><span class="o">.</span><span class="n">AMIOptics</span><span class="p">(),</span>
+    <span class="n">detector</span><span class="o">=</span><span class="n">amigo</span><span class="o">.</span><span class="n">detector_models</span><span class="o">.</span><span class="n">LinearDetector</span><span class="p">(),</span>
+    <span class="n">ramp_model</span><span class="o">=</span><span class="n">amigo</span><span class="o">.</span><span class="n">ramp_models</span><span class="o">.</span><span class="n">NonLinearRamp</span><span class="p">(),</span>
+    <span class="n">read</span><span class="o">=</span><span class="n">amigo</span><span class="o">.</span><span class="n">read_models</span><span class="o">.</span><span class="n">ReadModel</span><span class="p">(),</span>
+    <span class="n">state</span><span class="o">=</span><span class="n">load_dict</span><span class="p">(</span><span class="n">model_cache</span> <span class="o">+</span> <span class="s2">&quot;calibration.npy&quot;</span><span class="p">),</span>
+    <span class="n">param_initers</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;distribution&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">source_size</span><span class="p">,</span> <span class="n">source_size</span><span class="p">))</span> <span class="o">/</span> <span class="n">source_size</span><span class="o">**</span><span class="mi">2</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>Let's have a look how the model fits the data at our initial guesses (it should be terrible)!</p>
+<div class="highlight"><pre><span></span><code><span class="k">for</span> <span class="n">exp</span> <span class="ow">in</span> <span class="n">exps</span><span class="p">:</span>
+    <span class="n">exp</span><span class="o">.</span><span class="n">print_summary</span><span class="p">()</span>
+    <span class="n">amigo</span><span class="o">.</span><span class="n">plotting</span><span class="o">.</span><span class="n">summarise_fit</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">exp</span><span class="p">)</span>
+</code></pre></div>
+<pre><code>File 01373_017_02_04_1
+Star IO
+Filter F430M
+nints 100
+ngroups 18
+</code></pre>
+<p><img alt="png" src="../dorito_example_files/dorito_example_12_1.png" /></p>
+<pre><code>File 01373_017_02_04_2
+Star IO
+Filter F430M
+nints 100
+ngroups 18
+</code></pre>
+<p><img alt="png" src="../dorito_example_files/dorito_example_12_3.png" /></p>
+<pre><code>File 01373_023_02_03_1
+Star HD 228337
+Filter F430M
+nints 8
+ngroups 12
+</code></pre>
+<p><img alt="png" src="../dorito_example_files/dorito_example_12_5.png" /></p>
+<h1 id="optimisation-stage-gradient-descent">Optimisation Stage: Gradient Descent<a class="headerlink" href="#optimisation-stage-gradient-descent" title="Permanent link">¤</a></h1>
+<p>We now will fit the model using gradient descent, specifically using the <code>optax</code> library. Let's set some things up first.</p>
+<p>Firstly we have our config, dictionary. You can see we are using a mixture of stochastic gradient descent and the adam optimiser. The <code>sgd</code> and <code>adam</code> functions from <code>zodiax</code> are just wrappers around the respective <code>optax</code> functions which allow for easy piecewise learning rate schedules.</p>
+<p>For example, <code>sgd(lr=100, start=50)</code> will cause a parameter to start fitting after 50 epochs with a learning rate of 100.</p>
+<div class="highlight"><pre><span></span><code><span class="n">config</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;positions&quot;</span><span class="p">:</span> <span class="n">sgd</span><span class="p">(</span><span class="n">lr</span><span class="o">=</span><span class="mf">4e-2</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+    <span class="s2">&quot;fluxes&quot;</span><span class="p">:</span> <span class="n">sgd</span><span class="p">(</span><span class="mf">5e-2</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+    <span class="s2">&quot;aberrations&quot;</span><span class="p">:</span> <span class="n">sgd</span><span class="p">(</span><span class="mf">5e0</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span>
+    <span class="s2">&quot;spectra&quot;</span><span class="p">:</span> <span class="n">sgd</span><span class="p">(</span><span class="mf">1e-1</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span>
+    <span class="s2">&quot;log_dist&quot;</span><span class="p">:</span> <span class="n">adam</span><span class="p">(</span><span class="mf">5e-2</span><span class="p">,</span> <span class="mi">20</span><span class="p">),</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Next we define a <code>norm_fn</code> or normalisation function, and a <code>grad_fn</code> or gradient function. These functions are applied each iteration of the fitting loop, to the parameters or the parameter gradients respectively.</p>
+<h2 id="normalisation-function">Normalisation function<a class="headerlink" href="#normalisation-function" title="Permanent link">¤</a></h2>
+<p>In this case, we want to normalise the source distribution every epoch so it will sum to unity.
+Additionally, if the <code>spectra</code> parameter wanders outside of <span class="arithmatex">\([-1, 1]\)</span>, everything will turn to <code>NaN</code>. To prevent this, we simply clip the value, to <span class="arithmatex">\([-0.8, 0.8]\)</span> to be extra safe.</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">norm_fn</span><span class="p">(</span><span class="n">model_params</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+    <span class="n">params</span> <span class="o">=</span> <span class="n">model_params</span><span class="o">.</span><span class="n">params</span>
+    <span class="k">if</span> <span class="s2">&quot;log_distribution&quot;</span> <span class="ow">in</span> <span class="n">params</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">log_dist</span> <span class="ow">in</span> <span class="n">params</span><span class="p">[</span><span class="s2">&quot;log_dist&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">distribution</span> <span class="o">=</span> <span class="mi">10</span><span class="o">**</span><span class="n">log_dist</span>
+            <span class="n">params</span><span class="p">[</span><span class="s2">&quot;log_dist&quot;</span><span class="p">][</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">distribution</span> <span class="o">/</span> <span class="n">distribution</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+
+    <span class="k">if</span> <span class="s2">&quot;spectra&quot;</span> <span class="ow">in</span> <span class="n">params</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+        <span class="n">spectra</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">a_min</span><span class="o">=-</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">a_max</span><span class="o">=</span><span class="mf">0.8</span><span class="p">),</span> <span class="n">params</span><span class="p">[</span><span class="s2">&quot;spectra&quot;</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="n">params</span><span class="p">[</span><span class="s2">&quot;spectra&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">spectra</span>
+
+    <span class="k">return</span> <span class="n">model_params</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s2">&quot;params&quot;</span><span class="p">,</span> <span class="n">params</span><span class="p">),</span> <span class="n">args</span>
+</code></pre></div>
+<h2 id="gradient-function">Gradient function<a class="headerlink" href="#gradient-function" title="Permanent link">¤</a></h2>
+<p>Because we are fitting the Io science exposures separately, they do not mutually constrain the position of the source distribution array. Because of this, we do not fit the positions of the science exposures, as the initial guess will be sufficient to place them in the correct part of the detector. implement this by simply multiply the gradients by zero in the <code>grad_fn</code>.</p>
+<p>I have also observed when fitting Io that the gradients of <code>spectra</code> for the science and calibrator exposures tend to be quite different. Because of this, in the <code>grad_fn</code> I reduce the gradients for the science exposures by a heuristic factor.</p>
+<div class="highlight"><pre><span></span><code><span class="n">sci_pos_keys</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">sci_spc_keys</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">exp</span> <span class="ow">in</span> <span class="n">exps</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">exp</span><span class="o">.</span><span class="n">calibrator</span><span class="p">:</span>
+        <span class="n">sci_pos_keys</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exp</span><span class="o">.</span><span class="n">map_param</span><span class="p">(</span><span class="s2">&quot;positions&quot;</span><span class="p">))</span>
+        <span class="n">sci_spc_keys</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exp</span><span class="o">.</span><span class="n">map_param</span><span class="p">(</span><span class="s2">&quot;spectra&quot;</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">grad_fn</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">grads</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+    <span class="c1"># Nuke the position gradients for the science exposures</span>
+    <span class="k">if</span> <span class="s2">&quot;positions&quot;</span> <span class="ow">in</span> <span class="n">config</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+        <span class="n">grads</span> <span class="o">=</span> <span class="n">grads</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">sci_pos_keys</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+
+    <span class="c1"># Reduce spectra gradients for the science exposures</span>
+    <span class="k">if</span> <span class="s2">&quot;spectra&quot;</span> <span class="ow">in</span> <span class="n">config</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+        <span class="n">grads</span> <span class="o">=</span> <span class="n">grads</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">sci_spc_keys</span><span class="p">,</span> <span class="mf">1e-2</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">grads</span><span class="p">,</span> <span class="n">args</span>
+</code></pre></div>
+<h2 id="regularisation">Regularisation<a class="headerlink" href="#regularisation" title="Permanent link">¤</a></h2>
+<p><code>dorito</code> has some common image regularisers built in. Here we will use total variation (<code>dorito.stats.TV</code>), which we put into the <code>args dictionary</code> which we will pass to our <code>Trainer</code> class.</p>
+<p>For this to work we will need to also pass the <code>dorito.stats.ramp_regularised_loss_fn</code> as the loss function to the <code>Trainer</code> class, as the default <code>amigo</code> loss function knows not of regularisation.</p>
+<div class="highlight"><pre><span></span><code><span class="n">args</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;reg_dict&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;TV&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">1e0</span><span class="p">,</span> <span class="n">dorito</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">TV</span><span class="p">)}}</span>
+</code></pre></div>
+<h2 id="fitting">Fitting<a class="headerlink" href="#fitting" title="Permanent link">¤</a></h2>
+<p>We are almost ready to fit. Here initialise the <code>Trainer</code> class, from <code>amigo</code>, and populate the Fisher matrices. These Fisher matrices are not crucial: they are simply pre-calculated matrices which scale the loss space in order to improve convergence, but with plenty of learning rate tweaking you will reach the same result. This is the case for the <code>log_dist</code> parameter which does not have any pre-calculated matrices!</p>
+<p>Lastly, we perform the fit!</p>
+<div class="highlight"><pre><span></span><code><span class="n">n_epoch</span> <span class="o">=</span> <span class="mi">1000</span>
+
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">amigo</span><span class="o">.</span><span class="n">fitting</span><span class="o">.</span><span class="n">Trainer</span><span class="p">(</span>
+    <span class="n">loss_fn</span><span class="o">=</span><span class="n">dorito</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">ramp_regularised_loss_fn</span><span class="p">,</span>
+    <span class="n">norm_fn</span><span class="o">=</span><span class="n">norm_fn</span><span class="p">,</span>
+    <span class="n">grad_fn</span><span class="o">=</span><span class="n">grad_fn</span><span class="p">,</span>
+    <span class="n">cache</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">fisher_path</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Populating fishers...&quot;</span><span class="p">)</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">populate_fishers</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">,</span>
+    <span class="n">exps</span><span class="p">,</span>
+    <span class="n">hessians</span><span class="o">=</span><span class="n">load_dict</span><span class="p">(</span><span class="n">model_cache</span> <span class="o">+</span> <span class="s2">&quot;jacobians.npy&quot;</span><span class="p">)[</span><span class="s2">&quot;hessian&quot;</span><span class="p">],</span>
+    <span class="n">parameters</span><span class="o">=</span><span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">config</span><span class="o">.</span><span class="n">keys</span><span class="p">()],</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Number of exposures: &quot;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">exps</span><span class="p">))</span>
+
+<span class="c1"># Train the model</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">optimisers</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+    <span class="n">epochs</span><span class="o">=</span><span class="n">n_epoch</span><span class="p">,</span>
+    <span class="n">batches</span><span class="o">=</span><span class="n">exps</span><span class="p">,</span>
+    <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+<pre><code>Populating fishers...
+KeyError: log_dist not in hessians for 01373_017_02_04_1, skipped
+KeyError: log_dist not in hessians for 01373_017_02_04_2, skipped
+KeyError: log_dist not in hessians for 01373_023_02_03_1, skipped
+Number of exposures:  3
+
+
+
+  0%|          | 0/1000 [00:00&lt;?, ?it/s]
+
+
+Compiling Loss function...
+Compiling update function...
+
+Initial_loss Loss: 120,196.78
+Estimated run time: 0:20:14
+Full Time: 0:21:55
+Final Loss: 30.75
+</code></pre>
+<h1 id="results">Results<a class="headerlink" href="#results" title="Permanent link">¤</a></h1>
+<p>Let's have a look at how our fit went.</p>
+<div class="highlight"><pre><span></span><code><span class="n">amigo</span><span class="o">.</span><span class="n">plotting</span><span class="o">.</span><span class="n">plot_losses</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">losses</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">start</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">n_epoch</span> <span class="o">*</span> <span class="mf">0.75</span><span class="p">))</span>
+<span class="n">amigo</span><span class="o">.</span><span class="n">plotting</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">history</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">exp</span> <span class="ow">in</span> <span class="n">exps</span><span class="p">:</span>
+    <span class="n">exp</span><span class="o">.</span><span class="n">print_summary</span><span class="p">()</span>
+    <span class="n">amigo</span><span class="o">.</span><span class="n">plotting</span><span class="o">.</span><span class="n">summarise_fit</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">exp</span><span class="p">)</span>
+</code></pre></div>
+<p><img alt="png" src="../dorito_example_files/dorito_example_25_0.png" /></p>
+<p><img alt="png" src="../dorito_example_files/dorito_example_25_1.png" /></p>
+<p><img alt="png" src="../dorito_example_files/dorito_example_25_2.png" /></p>
+<p><img alt="png" src="../dorito_example_files/dorito_example_25_3.png" /></p>
+<pre><code>File 01373_017_02_04_1
+Star IO
+Filter F430M
+nints 100
+ngroups 18
+</code></pre>
+<p><img alt="png" src="../dorito_example_files/dorito_example_25_5.png" /></p>
+<pre><code>File 01373_017_02_04_2
+Star IO
+Filter F430M
+nints 100
+ngroups 18
+</code></pre>
+<p><img alt="png" src="../dorito_example_files/dorito_example_25_7.png" /></p>
+<pre><code>File 01373_023_02_03_1
+Star HD 228337
+Filter F430M
+nints 8
+ngroups 12
+</code></pre>
+<p><img alt="png" src="../dorito_example_files/dorito_example_25_9.png" /></p>
+<p>Nice. Some of the parameters are not entirely converged, and this can be improved by running the fit for more epochs, or by passing the fit model to another optimiser. We have seen some success with <code>optimistix.BFGS</code>. This is especially true of the <code>spectra</code> parameter for Io, where you can see the effect of spectral miscalibration in the residuals. </p>
+<p>But this will do nicely for now — let's see our images! These look slightly under-regularised, as the volcanos are much to close to single points.</p>
+<div class="highlight"><pre><span></span><code><span class="n">optics_diameter</span> <span class="o">=</span> <span class="mf">6.603464</span>  <span class="c1"># JWST aperture diameter in meters</span>
+<span class="n">wavel</span> <span class="o">=</span> <span class="mf">4.3e-6</span>  <span class="c1"># approximate F430M mean wavelength in meters</span>
+
+<span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">exp</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">exps</span><span class="p">):</span>
+
+    <span class="c1"># only plot science exposures</span>
+    <span class="k">if</span> <span class="n">exp</span><span class="o">.</span><span class="n">calibrator</span><span class="p">:</span>
+        <span class="k">continue</span>
+
+    <span class="n">dist</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">get_distribution</span><span class="p">(</span><span class="n">exp</span><span class="p">,</span> <span class="n">rotate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="mf">2.3</span><span class="p">))</span>
+
+    <span class="n">c0</span> <span class="o">=</span> <span class="n">dorito</span><span class="o">.</span><span class="n">plotting</span><span class="o">.</span><span class="n">plot_result</span><span class="p">(</span>
+        <span class="n">ax</span><span class="p">,</span>
+        <span class="n">dist</span> <span class="o">/</span> <span class="n">dist</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span>
+        <span class="n">pixel_scale</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">psf_pixel_scale</span> <span class="o">/</span> <span class="n">model</span><span class="o">.</span><span class="n">oversample</span><span class="p">,</span>
+        <span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;inferno&quot;</span><span class="p">,</span>
+        <span class="n">norm</span><span class="o">=</span><span class="n">mpl</span><span class="o">.</span><span class="n">colors</span><span class="o">.</span><span class="n">PowerNorm</span><span class="p">(</span><span class="mf">0.6</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
+        <span class="n">diff_lim</span><span class="o">=</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">dlu</span><span class="o">.</span><span class="n">rad2arcsec</span><span class="p">(</span><span class="n">wavel</span> <span class="o">/</span> <span class="n">optics_diameter</span><span class="p">),</span>
+        <span class="n">scale</span><span class="o">=</span><span class="mf">1.2</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">c0</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;Io Frame </span><span class="si">{</span><span class="n">idx</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</code></pre></div>
+<p><img alt="png" src="../dorito_example_files/dorito_example_27_0.png" /></p>
+<p><img alt="png" src="../dorito_example_files/dorito_example_27_1.png" /></p>
+<div class="highlight"><pre><span></span><code>
+</code></pre></div>
 
 
 
