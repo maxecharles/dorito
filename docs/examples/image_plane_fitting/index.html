@@ -568,7 +568,7 @@ ngroups 12
 <p>For example, <code>sgd(lr=100, start=50)</code> will cause a parameter to start fitting after 50 epochs with a learning rate of 100.</p>
 <div class="highlight"><pre><span></span><code><span class="n">config</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s2">&quot;positions&quot;</span><span class="p">:</span> <span class="n">sgd</span><span class="p">(</span><span class="n">lr</span><span class="o">=</span><span class="mf">4e-2</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
-    <span class="s2">&quot;fluxes&quot;</span><span class="p">:</span> <span class="n">sgd</span><span class="p">(</span><span class="mf">5e-2</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+    <span class="s2">&quot;fluxes&quot;</span><span class="p">:</span> <span class="n">sgd</span><span class="p">(</span><span class="mf">2e-2</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
     <span class="s2">&quot;aberrations&quot;</span><span class="p">:</span> <span class="n">sgd</span><span class="p">(</span><span class="mf">5e0</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span>
     <span class="s2">&quot;spectra&quot;</span><span class="p">:</span> <span class="n">sgd</span><span class="p">(</span><span class="mf">1e-1</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span>
     <span class="s2">&quot;log_dist&quot;</span><span class="p">:</span> <span class="n">adam</span><span class="p">(</span><span class="mf">5e-2</span><span class="p">,</span> <span class="mi">20</span><span class="p">),</span>
@@ -580,7 +580,7 @@ ngroups 12
 Additionally, if the <code>spectra</code> parameter wanders outside of <span class="arithmatex">\([-1, 1]\)</span>, everything will turn to <code>NaN</code>. To prevent this, we simply clip the value, to <span class="arithmatex">\([-0.8, 0.8]\)</span> to be extra safe.</p>
 <div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">norm_fn</span><span class="p">(</span><span class="n">model_params</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
     <span class="n">params</span> <span class="o">=</span> <span class="n">model_params</span><span class="o">.</span><span class="n">params</span>
-    <span class="k">if</span> <span class="s2">&quot;log_distribution&quot;</span> <span class="ow">in</span> <span class="n">params</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+    <span class="k">if</span> <span class="s2">&quot;log_dist&quot;</span> <span class="ow">in</span> <span class="n">params</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">log_dist</span> <span class="ow">in</span> <span class="n">params</span><span class="p">[</span><span class="s2">&quot;log_dist&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">distribution</span> <span class="o">=</span> <span class="mi">10</span><span class="o">**</span><span class="n">log_dist</span>
             <span class="n">params</span><span class="p">[</span><span class="s2">&quot;log_dist&quot;</span><span class="p">][</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">distribution</span> <span class="o">/</span> <span class="n">distribution</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
@@ -617,10 +617,10 @@ Additionally, if the <code>spectra</code> parameter wanders outside of <span cla
 <h2 id="regularisation">Regularisation<a class="headerlink" href="#regularisation" title="Permanent link">¤</a></h2>
 <p><code>dorito</code> has some common image regularisers built in. Here we will use total variation (<code>dorito.stats.TV</code>), which we put into the <code>args dictionary</code> which we will pass to our <code>Trainer</code> class.</p>
 <p>For this to work we will need to also pass the <code>dorito.stats.ramp_regularised_loss_fn</code> as the loss function to the <code>Trainer</code> class, as the default <code>amigo</code> loss function knows not of regularisation.</p>
-<div class="highlight"><pre><span></span><code><span class="n">args</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;reg_dict&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;TV&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">1e0</span><span class="p">,</span> <span class="n">dorito</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">TV</span><span class="p">)}}</span>
+<div class="highlight"><pre><span></span><code><span class="n">args</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;reg_dict&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;TV&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">5e0</span><span class="p">,</span> <span class="n">dorito</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">TV</span><span class="p">)}}</span>
 </code></pre></div>
 <h2 id="fitting">Fitting<a class="headerlink" href="#fitting" title="Permanent link">¤</a></h2>
-<p>We are almost ready to fit. Here initialise the <code>Trainer</code> class, from <code>amigo</code>, and populate the Fisher matrices. These Fisher matrices are not crucial: they are simply pre-calculated matrices which scale the loss space in order to improve convergence, but with plenty of learning rate tweaking you will reach the same result. This is the case for the <code>log_dist</code> parameter which does not have any pre-calculated matrices!</p>
+<p>We are almost ready to fit. Here we initialise the <code>Trainer</code> class from <code>amigo</code> and populate the Fisher matrices. These Fisher matrices are not crucial: they are simply pre-calculated matrices which scale the loss space in order to improve convergence, but with plenty of learning rate tweaking you will reach the same result. This is the case for the <code>log_dist</code> parameter which does not have any pre-calculated matrices!</p>
 <p>Lastly, we perform the fit!</p>
 <div class="highlight"><pre><span></span><code><span class="n">n_epoch</span> <span class="o">=</span> <span class="mi">1000</span>
 
@@ -664,10 +664,10 @@ Number of exposures:  3
 Compiling Loss function...
 Compiling update function...
 
-Initial_loss Loss: 120,196.78
-Estimated run time: 0:20:14
-Full Time: 0:21:55
-Final Loss: 30.75
+Initial_loss Loss: 120,196.88
+Estimated run time: 0:20:16
+Full Time: 0:21:54
+Final Loss: 24.42
 </code></pre>
 <h1 id="results">Results<a class="headerlink" href="#results" title="Permanent link">¤</a></h1>
 <p>Let's have a look at how our fit went.</p>
@@ -688,23 +688,8 @@ Filter F430M
 nints 100
 ngroups 18
 </code></pre>
-<p><img alt="png" src="../dorito_example_files/dorito_example_25_5.png" /></p>
-<pre><code>File 01373_017_02_04_2
-Star IO
-Filter F430M
-nints 100
-ngroups 18
-</code></pre>
-<p><img alt="png" src="../dorito_example_files/dorito_example_25_7.png" /></p>
-<pre><code>File 01373_023_02_03_1
-Star HD 228337
-Filter F430M
-nints 8
-ngroups 12
-</code></pre>
-<p><img alt="png" src="../dorito_example_files/dorito_example_25_9.png" /></p>
 <p>Nice. Some of the parameters are not entirely converged, and this can be improved by running the fit for more epochs, or by passing the fit model to another optimiser. We have seen some success with <code>optimistix.BFGS</code>. This is especially true of the <code>spectra</code> parameter for Io, where you can see the effect of spectral miscalibration in the residuals. </p>
-<p>But this will do nicely for now — let's see our images! These look slightly under-regularised, as the volcanoes are much too close to single points.</p>
+<p>But this will do nicely for now — let's see our images!</p>
 <div class="highlight"><pre><span></span><code><span class="n">optics_diameter</span> <span class="o">=</span> <span class="mf">6.603464</span>  <span class="c1"># JWST aperture diameter in meters</span>
 <span class="n">wavel</span> <span class="o">=</span> <span class="mf">4.3e-6</span>  <span class="c1"># approximate F430M mean wavelength in meters</span>
 
