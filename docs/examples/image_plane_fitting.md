@@ -252,7 +252,7 @@ For example, `sgd(lr=100, start=50)` will cause a parameter to start fitting aft
 ```python
 config = {
     "positions": sgd(lr=4e-2, start=0),
-    "fluxes": sgd(5e-2, 0),
+    "fluxes": sgd(2e-2, 0),
     "aberrations": sgd(5e0, 4),
     "spectra": sgd(1e-1, 10),
     "log_dist": adam(5e-2, 20),
@@ -271,7 +271,7 @@ Additionally, if the `spectra` parameter wanders outside of $[-1, 1]$, everythin
 ```python
 def norm_fn(model_params, args):
     params = model_params.params
-    if "log_distribution" in params.keys():
+    if "log_dist" in params.keys():
         for k, log_dist in params["log_dist"].items():
             distribution = 10**log_dist
             params["log_dist"][k] = np.log10(distribution / distribution.sum())
@@ -320,11 +320,11 @@ For this to work we will need to also pass the `dorito.stats.ramp_regularised_lo
 
 
 ```python
-args = {"reg_dict": {"TV": (1e0, dorito.stats.TV)}}
+args = {"reg_dict": {"TV": (5e0, dorito.stats.TV)}}
 ```
 
 ## Fitting
-We are almost ready to fit. Here initialise the `Trainer` class, from `amigo`, and populate the Fisher matrices. These Fisher matrices are not crucial: they are simply pre-calculated matrices which scale the loss space in order to improve convergence, but with plenty of learning rate tweaking you will reach the same result. This is the case for the `log_dist` parameter which does not have any pre-calculated matrices!
+We are almost ready to fit. Here we initialise the `Trainer` class from `amigo` and populate the Fisher matrices. These Fisher matrices are not crucial: they are simply pre-calculated matrices which scale the loss space in order to improve convergence, but with plenty of learning rate tweaking you will reach the same result. This is the case for the `log_dist` parameter which does not have any pre-calculated matrices!
 
 Lastly, we perform the fit!
 
@@ -373,10 +373,10 @@ result = trainer.train(
     Compiling Loss function...
     Compiling update function...
     
-    Initial_loss Loss: 120,196.78
-    Estimated run time: 0:20:14
-    Full Time: 0:21:55
-    Final Loss: 30.75
+    Initial_loss Loss: 120,196.88
+    Estimated run time: 0:20:16
+    Full Time: 0:21:54
+    Final Loss: 24.42
 
 
 # Results
@@ -425,43 +425,9 @@ for exp in exps:
     
 
 
-
-    
-![png](dorito_example_files/dorito_example_25_5.png)
-    
-
-
-    File 01373_017_02_04_2
-    Star IO
-    Filter F430M
-    nints 100
-    ngroups 18
-    
-
-
-
-    
-![png](dorito_example_files/dorito_example_25_7.png)
-    
-
-
-    File 01373_023_02_03_1
-    Star HD 228337
-    Filter F430M
-    nints 8
-    ngroups 12
-    
-
-
-
-    
-![png](dorito_example_files/dorito_example_25_9.png)
-    
-
-
 Nice. Some of the parameters are not entirely converged, and this can be improved by running the fit for more epochs, or by passing the fit model to another optimiser. We have seen some success with `optimistix.BFGS`. This is especially true of the `spectra` parameter for Io, where you can see the effect of spectral miscalibration in the residuals. 
 
-But this will do nicely for now — let's see our images! These look slightly under-regularised, as the volcanoes are much too close to single points.
+But this will do nicely for now — let's see our images!
 
 
 ```python
