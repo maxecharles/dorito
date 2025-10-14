@@ -7,19 +7,15 @@
 Seen in the gif above are five successive images of Jupiter's moon Io that have been deconvolved with `dorito`, with the moon's axial rotation clearly visible. The right image shows the expected positions of known volcanic features on Io's hellscape of a surface!
 
 Please refer to our publications for more detail: [amigo paper here](https://arxiv.org/abs/2510.09806), [dorito paper here](https://arxiv.org/abs/2510.10924).
-
-
+<!-- 
 - Differentiable
 - Optics for
 - Reconstructing
 - Images from
 - Telescope
-- Observations
+- Observations -->
 
-## Documentation...?
-There is one example notebook here showing the reconstruction of Io in the image plane.
-
-We are working hard to more create documentation and example notebooks to share with the community here. Thank you for your patience, and please do not hesitate to reach out with any questions or queries. You can reach me (Max) at
+We are working hard to create more documentation and example notebooks to share with the community here. Thank you for your patience, and please do not hesitate to reach out with any questions or queries. You can reach me (Max) at
 ```text
 max.charles@sydney.edu.au
 ```
