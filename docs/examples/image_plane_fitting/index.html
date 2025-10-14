@@ -704,7 +704,7 @@ ngroups 12
 </code></pre>
 <p><img alt="png" src="../dorito_example_files/dorito_example_25_9.png" /></p>
 <p>Nice. Some of the parameters are not entirely converged, and this can be improved by running the fit for more epochs, or by passing the fit model to another optimiser. We have seen some success with <code>optimistix.BFGS</code>. This is especially true of the <code>spectra</code> parameter for Io, where you can see the effect of spectral miscalibration in the residuals. </p>
-<p>But this will do nicely for now — let's see our images! These look slightly under-regularised, as the volcanos are much to close to single points.</p>
+<p>But this will do nicely for now — let's see our images! These look slightly under-regularised, as the volcanoes are much too close to single points.</p>
 <div class="highlight"><pre><span></span><code><span class="n">optics_diameter</span> <span class="o">=</span> <span class="mf">6.603464</span>  <span class="c1"># JWST aperture diameter in meters</span>
 <span class="n">wavel</span> <span class="o">=</span> <span class="mf">4.3e-6</span>  <span class="c1"># approximate F430M mean wavelength in meters</span>
 
