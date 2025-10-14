@@ -436,7 +436,7 @@
 Amigo model files:
 ['jacobians.npy', 'calibration.npy', 'vis_basis.npy', 'calibration_2.npy', 'calibration_1.npy', 'im_basis101_1pix_M.npy']
 </code></pre>
-<p>Now we actually load the fits files, and set the bad pixels we want. We also truncate the ramp because the Io data is saturated, and we want to keep the pixel well depth below the data which was used to train the <code>amigo</code> model. </p>
+<p>Now we actually load the fits files, and set the bad pixels we want. We also truncate the ramp because the Io data is saturated, and we want to keep the pixel well depth below the that of data which was used to train the <code>amigo</code> model. </p>
 <div class="highlight"><pre><span></span><code><span class="n">EXP_TYPE</span> <span class="o">=</span> <span class="s2">&quot;NIS_AMI&quot;</span>
 <span class="n">FILTERS</span> <span class="o">=</span> <span class="p">[</span>
     <span class="c1"># &quot;F480M&quot;,</span>
@@ -499,7 +499,7 @@ Amigo model files:
 <span class="n">dorito</span><span class="o">.</span><span class="n">misc</span><span class="o">.</span><span class="n">truncate_files</span><span class="p">(</span><span class="n">sci_files</span><span class="p">,</span> <span class="mi">18</span><span class="p">)</span>
 </code></pre></div>
 <h1 id="building-the-model">Building the model<a class="headerlink" href="#building-the-model" title="Permanent link">¤</a></h1>
-<p>We are going to have to build the exposures. DORITO has a <code>ResolvedFit</code> class build in, however this will jointly fit all exposures from the same filter. Since we want to capture Io's rotation in a time series, we instead want to <em>uniquely</em> fit each epochs. To do this, we will write a child class of <code>ResolvedFit</code> and amend the <code>get_key</code> method. By adding the <code>self.key</code> to the <code>log_dist</code> parameter key, this ensures each exposure will fit a unique distribution. In the <code>ResolvedFit</code> class, it is instead set just to <code>self.filter</code>, which is common for all the exposures and hence they will share the same parameter.</p>
+<p>We are going to have to build the exposures. <code>dorito</code> has a <code>ResolvedFit</code> class built in, however this will jointly fit all exposures of the same filter. Since we want to capture Io's rotation in a time series, we instead want to <em>uniquely</em> fit each epoch. To do this, we will write a child class of <code>ResolvedFit</code> and amend the <code>get_key</code> method. By adding the <code>self.key</code> to the <code>log_dist</code> parameter key, this ensures each exposure will fit a unique distribution. In the <code>ResolvedFit</code> class, it is instead set just to <code>self.filter</code>, which is common for all the exposures and hence they will share the same parameter.</p>
 <p><code>DynamicResolvedFit</code> is also built into <code>dorito</code>, but it is useful to show how the classes are constructed. Once you get comfortable with setting the <code>get_key</code> class, <code>amigo</code> makes it very easy to quickly change the parameter fitting hierarchy.</p>
 <div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">DynamicResolvedFit</span><span class="p">(</span><span class="n">dorito</span><span class="o">.</span><span class="n">model_fits</span><span class="o">.</span><span class="n">ResolvedFit</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
@@ -514,7 +514,7 @@ Amigo model files:
 
         <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">get_key</span><span class="p">(</span><span class="n">param</span><span class="p">)</span>
 </code></pre></div>
-<p>Building the exposures and model. Today, to keep this simple, we will just fit two of the five Io exposures, and use one of the calibrator exposures.</p>
+<p>Now we will build the exposures and model. Today, to keep this simple, we will just fit two of the five Io exposures, and use one of the calibrator exposures.</p>
 <div class="highlight"><pre><span></span><code><span class="n">load_dict</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">allow_pickle</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>  <span class="c1"># helper function</span>
 
 <span class="c1"># just two science exposures and one calibrator for this demo</span>
@@ -564,7 +564,7 @@ ngroups 12
 <p><img alt="png" src="../dorito_example_files/dorito_example_12_5.png" /></p>
 <h1 id="optimisation-stage-gradient-descent">Optimisation Stage: Gradient Descent<a class="headerlink" href="#optimisation-stage-gradient-descent" title="Permanent link">¤</a></h1>
 <p>We now will fit the model using gradient descent, specifically using the <code>optax</code> library. Let's set some things up first.</p>
-<p>Firstly we have our config, dictionary. You can see we are using a mixture of stochastic gradient descent and the adam optimiser. The <code>sgd</code> and <code>adam</code> functions from <code>zodiax</code> are just wrappers around the respective <code>optax</code> functions which allow for easy piecewise learning rate schedules.</p>
+<p>Firstly we have our <code>config</code> dictionary. You can see we are using a mixture of stochastic gradient descent and the adam optimiser. The <code>sgd</code> and <code>adam</code> functions from <code>zodiax</code> are just wrappers around the respective <code>optax</code> functions which allow for easy piecewise learning rate schedules.</p>
 <p>For example, <code>sgd(lr=100, start=50)</code> will cause a parameter to start fitting after 50 epochs with a learning rate of 100.</p>
 <div class="highlight"><pre><span></span><code><span class="n">config</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s2">&quot;positions&quot;</span><span class="p">:</span> <span class="n">sgd</span><span class="p">(</span><span class="n">lr</span><span class="o">=</span><span class="mf">4e-2</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
@@ -574,10 +574,10 @@ ngroups 12
     <span class="s2">&quot;log_dist&quot;</span><span class="p">:</span> <span class="n">adam</span><span class="p">(</span><span class="mf">5e-2</span><span class="p">,</span> <span class="mi">20</span><span class="p">),</span>
 <span class="p">}</span>
 </code></pre></div>
-<p>Next we define a <code>norm_fn</code> or normalisation function, and a <code>grad_fn</code> or gradient function. These functions are applied each iteration of the fitting loop, to the parameters or the parameter gradients respectively.</p>
+<p>Next we define a <code>norm_fn</code> or normalisation function, and a <code>grad_fn</code> or gradient function. These functions are applied each iteration of the fitting loop to the parameters or the parameter gradients respectively.</p>
 <h2 id="normalisation-function">Normalisation function<a class="headerlink" href="#normalisation-function" title="Permanent link">¤</a></h2>
-<p>In this case, we want to normalise the source distribution every epoch so it will sum to unity.
-Additionally, if the <code>spectra</code> parameter wanders outside of <span class="arithmatex">\([-1, 1]\)</span>, everything will turn to <code>NaN</code>. To prevent this, we simply clip the value, to <span class="arithmatex">\([-0.8, 0.8]\)</span> to be extra safe.</p>
+<p>Because the source distribution values are covariant with the flux parameter, we want to normalise the source distribution every epoch so it will sum to unity.
+Additionally, if the <code>spectra</code> parameter wanders outside of <span class="arithmatex">\([-1, 1]\)</span>, everything will turn to <code>NaN</code>. To prevent this, we simply clip the value to <span class="arithmatex">\([-0.8, 0.8]\)</span> to be extra safe.</p>
 <div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">norm_fn</span><span class="p">(</span><span class="n">model_params</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
     <span class="n">params</span> <span class="o">=</span> <span class="n">model_params</span><span class="o">.</span><span class="n">params</span>
     <span class="k">if</span> <span class="s2">&quot;log_dist&quot;</span> <span class="ow">in</span> <span class="n">params</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
@@ -594,8 +594,8 @@ Additionally, if the <code>spectra</code> parameter wanders outside of <span cla
     <span class="k">return</span> <span class="n">model_params</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s2">&quot;params&quot;</span><span class="p">,</span> <span class="n">params</span><span class="p">),</span> <span class="n">args</span>
 </code></pre></div>
 <h2 id="gradient-function">Gradient function<a class="headerlink" href="#gradient-function" title="Permanent link">¤</a></h2>
-<p>Because we are fitting the Io science exposures separately, they do not mutually constrain the position of the source distribution array. Because of this, we do not fit the positions of the science exposures, as the initial guess will be sufficient to place them in the correct part of the detector. implement this by simply multiply the gradients by zero in the <code>grad_fn</code>.</p>
-<p>I have also observed when fitting Io that the gradients of <code>spectra</code> for the science and calibrator exposures tend to be quite different. Because of this, in the <code>grad_fn</code> I reduce the gradients for the science exposures by a heuristic factor.</p>
+<p>Because we are fitting the Io science exposures separately, they do not mutually constrain the position of the source distribution array. Because of this, we do not fit the positions of the science exposures, as the initial guess will be sufficient to place them in the correct part of the detector. We implement this by simply multiplying the gradients by zero in the <code>grad_fn</code>.</p>
+<p>I have also observed when fitting Io that the gradients of <code>spectra</code> for the science and calibrator exposures tend to be quite different. Because of this, in the <code>grad_fn</code> I reduce the gradients only for the science exposures by a heuristic factor.</p>
 <div class="highlight"><pre><span></span><code><span class="n">sci_pos_keys</span> <span class="o">=</span> <span class="p">[]</span>
 <span class="n">sci_spc_keys</span> <span class="o">=</span> <span class="p">[]</span>
 <span class="k">for</span> <span class="n">exp</span> <span class="ow">in</span> <span class="n">exps</span><span class="p">:</span>
