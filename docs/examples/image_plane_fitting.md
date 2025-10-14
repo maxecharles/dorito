@@ -1,6 +1,6 @@
 # Io Reconstruction in the Image Plane
 
-In this notebook I will run through a basic example of an image reconstruction using Method 1 from the paper.
+In this notebook I will run through a basic example of an image reconstruction using Method 1 from the [dorito paper](https://arxiv.org/abs/2510.10924).
 
 First we import our relevant libraries, and enable 64-bit float precision and (optionally) GPU usage.
 
