@@ -75,7 +75,7 @@ print(os.listdir(model_cache), "\n")
     
 
 
-Now we actually load the fits files, and set the bad pixels we want. We also truncate the ramp because the Io data is saturated, and we want to keep the pixel well depth below the data which was used to train the `amigo` model. 
+Now we actually load the fits files, and set the bad pixels we want. We also truncate the ramp because the Io data is saturated, and we want to keep the pixel well depth below the that of data which was used to train the `amigo` model. 
 
 
 ```python
@@ -143,7 +143,7 @@ dorito.misc.truncate_files(sci_files, 18)
 
 # Building the model
 
-We are going to have to build the exposures. DORITO has a `ResolvedFit` class build in, however this will jointly fit all exposures from the same filter. Since we want to capture Io's rotation in a time series, we instead want to *uniquely* fit each epochs. To do this, we will write a child class of `ResolvedFit` and amend the `get_key` method. By adding the `self.key` to the `log_dist` parameter key, this ensures each exposure will fit a unique distribution. In the `ResolvedFit` class, it is instead set just to `self.filter`, which is common for all the exposures and hence they will share the same parameter.
+We are going to have to build the exposures. `dorito` has a `ResolvedFit` class built in, however this will jointly fit all exposures of the same filter. Since we want to capture Io's rotation in a time series, we instead want to *uniquely* fit each epoch. To do this, we will write a child class of `ResolvedFit` and amend the `get_key` method. By adding the `self.key` to the `log_dist` parameter key, this ensures each exposure will fit a unique distribution. In the `ResolvedFit` class, it is instead set just to `self.filter`, which is common for all the exposures and hence they will share the same parameter.
 
 `DynamicResolvedFit` is also built into `dorito`, but it is useful to show how the classes are constructed. Once you get comfortable with setting the `get_key` class, `amigo` makes it very easy to quickly change the parameter fitting hierarchy.
 
@@ -163,7 +163,7 @@ class DynamicResolvedFit(dorito.model_fits.ResolvedFit):
         return super().get_key(param)
 ```
 
-Building the exposures and model. Today, to keep this simple, we will just fit two of the five Io exposures, and use one of the calibrator exposures.
+Now we will build the exposures and model. Today, to keep this simple, we will just fit two of the five Io exposures, and use one of the calibrator exposures.
 
 
 ```python
@@ -244,7 +244,7 @@ for exp in exps:
 
 We now will fit the model using gradient descent, specifically using the `optax` library. Let's set some things up first.
 
-Firstly we have our config, dictionary. You can see we are using a mixture of stochastic gradient descent and the adam optimiser. The `sgd` and `adam` functions from `zodiax` are just wrappers around the respective `optax` functions which allow for easy piecewise learning rate schedules.
+Firstly we have our `config` dictionary. You can see we are using a mixture of stochastic gradient descent and the adam optimiser. The `sgd` and `adam` functions from `zodiax` are just wrappers around the respective `optax` functions which allow for easy piecewise learning rate schedules.
 
 For example, `sgd(lr=100, start=50)` will cause a parameter to start fitting after 50 epochs with a learning rate of 100.
 
@@ -259,12 +259,12 @@ config = {
 }
 ```
 
-Next we define a `norm_fn` or normalisation function, and a `grad_fn` or gradient function. These functions are applied each iteration of the fitting loop, to the parameters or the parameter gradients respectively.
+Next we define a `norm_fn` or normalisation function, and a `grad_fn` or gradient function. These functions are applied each iteration of the fitting loop to the parameters or the parameter gradients respectively.
 
 ## Normalisation function
 
-In this case, we want to normalise the source distribution every epoch so it will sum to unity.
-Additionally, if the `spectra` parameter wanders outside of $[-1, 1]$, everything will turn to `NaN`. To prevent this, we simply clip the value, to $[-0.8, 0.8]$ to be extra safe.
+Because the source distribution values are covariant with the flux parameter, we want to normalise the source distribution every epoch so it will sum to unity.
+Additionally, if the `spectra` parameter wanders outside of $[-1, 1]$, everything will turn to `NaN`. To prevent this, we simply clip the value to $[-0.8, 0.8]$ to be extra safe.
 
 
 
@@ -286,9 +286,9 @@ def norm_fn(model_params, args):
 ```
 
 ## Gradient function
-Because we are fitting the Io science exposures separately, they do not mutually constrain the position of the source distribution array. Because of this, we do not fit the positions of the science exposures, as the initial guess will be sufficient to place them in the correct part of the detector. implement this by simply multiply the gradients by zero in the `grad_fn`.
+Because we are fitting the Io science exposures separately, they do not mutually constrain the position of the source distribution array. Because of this, we do not fit the positions of the science exposures, as the initial guess will be sufficient to place them in the correct part of the detector. We implement this by simply multiplying the gradients by zero in the `grad_fn`.
 
-I have also observed when fitting Io that the gradients of `spectra` for the science and calibrator exposures tend to be quite different. Because of this, in the `grad_fn` I reduce the gradients for the science exposures by a heuristic factor.
+I have also observed when fitting Io that the gradients of `spectra` for the science and calibrator exposures tend to be quite different. Because of this, in the `grad_fn` I reduce the gradients only for the science exposures by a heuristic factor.
 
 
 
