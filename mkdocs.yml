@@ -85,6 +85,6 @@ theme:
 
 nav:
   - Home: README.md
-  # - Examples:
-  #     - Image Plane Fitting: docs/examples/image_plane_fitting.md
+  - Examples:
+      - Image Plane Fitting: docs/examples/image_plane_fitting.md
   # - API:
