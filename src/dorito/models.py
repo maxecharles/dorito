@@ -6,6 +6,7 @@ import equinox as eqx
 from zodiax import Base
 import dLux.utils as dlu
 from scipy.ndimage import binary_dilation
+from .bases import ImageBasis
 
 
 class _BaseResolvedModel(BaseModeller):
@@ -365,29 +366,14 @@ class MCADiscoModel(ResolvedDiscoModel):
         return distribution
 
 
-class ImageBasis(Base):
-
-    M: Array
-    M_inv: Array
-    n_basis: int = eqx.field(static=True)
-    size: int = eqx.field(static=True)
-
-    def __init__(self, basis_dict: dict, n_basis: int):
-        self.n_basis = n_basis
-        self.M = basis_dict["eigvecs"][:, :n_basis]
-        self.M_inv = np.linalg.pinv(self.M)
-        self.size = int(np.sqrt(self.M.shape[0]))
-
-    def to_eigenbasis(self, img: Array) -> Array:
-        return np.dot(self.M_inv, img.flatten())
-
-    def from_eigenbasis(self, coeffs: Array) -> Array:
-        return np.dot(self.M, coeffs).reshape((self.size, self.size))
+import jax.tree as jtu
+from dorito.models import ResolvedAmigoModel
 
 
 class TransformedResolvedModel(ResolvedAmigoModel):
 
     basis: None
+    window: Array
 
     def __init__(
         self,
@@ -399,6 +385,7 @@ class TransformedResolvedModel(ResolvedAmigoModel):
         basis: ImageBasis,
         state,
         source_oversample=1,
+        window: Array = None,
         param_initers: dict = None,
         rotate: bool = True,
     ):
@@ -412,6 +399,12 @@ class TransformedResolvedModel(ResolvedAmigoModel):
             return x
 
         self.basis = jtu.map(lambda x: fn(x), basis)
+        self.window = window
+
+        init_log_dist = np.log10(param_initers["distribution"])
+        init_coeffs = self.basis.to_basis(init_log_dist)
+        param_initers["coeffs"] = init_coeffs
+        del param_initers["distribution"]
 
         super().__init__(
             exposures,
@@ -425,17 +418,27 @@ class TransformedResolvedModel(ResolvedAmigoModel):
             param_initers,
         )
 
-    def get_distribution(self, exposure, rotate: bool = None):
-        """
-        Get the distribution from the exposure.
+    def get_distribution(
+        self,
+        exposure,
+        rotate: bool = None,
+        exponentiate=True,
+        window=True,
+    ):
 
-        Args:
-            exposure: The exposure object containing the distribution key.
-        Returns:
-            Array: The intensity distribution of the source.
-        """
         coeffs = self.params["log_dist"][exposure.get_key("log_dist")]
-        distribution = self.basis.from_eigenbasis(coeffs)
+
+        # exponentiation
+        if exponentiate:
+            distribution = 10 ** self.basis.from_basis(coeffs)
+        else:
+            distribution = self.basis.from_basis(coeffs)
+
+        # windowing
+        if self.window is not None and window:
+            distribution *= self.window
+
+        # rotation
         if rotate is None:
             rotate = self.rotate
         if rotate:

@@ -9,7 +9,7 @@ import dLux.utils as dlu
 
 class BaseResolvedFit:
 
-    def rotate(self, distribution, clip=True):
+    def rotate(self, distribution, clip=True, interp_method="linear"):
         """
         Rotate the distribution by the parallactic angle.
         This method rotates the distribution using the dLux utility functions.
@@ -26,7 +26,7 @@ class BaseResolvedFit:
             distribution,
             knots,
             samps,
-            method="linear",
+            method=interp_method,
         )
 
         # clipping to enforce positivity
@@ -112,6 +112,7 @@ class DynamicResolvedFit(ResolvedFit):
                 return "_".join([self.key, self.filter])
 
         return super().get_key(param)
+
 
 class MCAFit(ResolvedFit):
 

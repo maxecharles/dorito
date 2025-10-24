@@ -7,6 +7,7 @@ from . import model_fits
 from . import models
 from . import plotting
 from . import stats
+from . import bases
 
 # from . import wavelets
 
@@ -16,5 +17,6 @@ __all__ = [
     models,
     plotting,
     stats,
+    bases,
     # wavelets,
 ]

@@ -1,6 +1,6 @@
 [project]
 name = "dorito"
-version = "0.1"
+version = "0.2.0"
 description = "An extension of amigo for regularised image deconvolution for resolved sources."
 readme = "README.md"
 requires-python = ">=3.11"
