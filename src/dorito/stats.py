@@ -13,13 +13,16 @@ def oi_log_likelihood(model, oi):
     return nll
 
 
-def apply_regularisers(model, exposure, args):
+def apply_regularisers(model, exposure, args, source_id=None):
 
     if "reg_dict" not in args.keys():
         return 0.0
 
     # evaluating the regularisation term with each for each regulariser
-    priors = [coeff * fun(model, exposure) for coeff, fun in args["reg_dict"].values()]
+    priors = [
+        coeff * fun(model, exposure, source_id=source_id)
+        for coeff, fun in args["reg_dict"].values()
+    ]
 
     # summing the different regularisers
     return np.array(priors).sum()
@@ -43,8 +46,19 @@ def ramp_regularised_loss_fn(model, exp, args={"reg_dict": {}}):
     # regular likelihood term
     likelihood = -np.nanmean(exp.mv_zscore(model))
 
-    # grabbing and exponentiating log distributions
-    prior = apply_regularisers(model, exp, args) if not exp.calibrator else 0.0
+    match exp.calibrator:
+        case True:
+            prior = 0.0
+        case False:
+            prior = apply_regularisers(model, exp, args)
+        case None:
+            if "source_id" in args.keys():
+                source_id = args["source_id"]
+                prior = apply_regularisers(
+                    model, exp.exposures[source_id], args, source_id=source_id
+                )
+            else:
+                prior = 0.0
 
     return likelihood + prior, ()
 
@@ -90,17 +104,6 @@ def ramp_posterior_balances(model, exposures, args={"reg_dict": {}}):
 #     return np.nansum(arr**2)
 
 
-# def TV_loss(arr):
-#     """
-#     Total variation loss function.
-#     """
-#     pad_arr = np.pad(arr, 2)  # padding
-#     dx = np.diff(pad_arr[0:-1, :])
-#     dy = np.diff(pad_arr[:, 0:-1])
-#     return dx.sum() + dy.sum()
-#     # return np.sqrt(dx[:, :-1] ** 2 + dy[:-1, :] ** 2).sum()
-
-
 def tikhinov(arr):
     """
     https://www-users.cse.umn.edu/~jwcalder/5467/lec_tv_denoising.pdf
@@ -111,13 +114,11 @@ def tikhinov(arr):
     return dx**2 + dy**2
 
 
-
 def TV_loss(arr, eps=1e-16):
     """
     Approximation of the L1 norm of the gradient of the image.
     """
     return np.sqrt(tikhinov(arr) + eps**2).sum()
-    
 
 
 def TSV_loss(arr):
@@ -136,10 +137,13 @@ def ME_loss(arr, eps=1e-16):
     return -S
 
 
-def get_distribution(model, exposure):
+def get_distribution(model, exposure, source_id=None):
 
-    if isinstance(model, MCAModel) or isinstance(model, MCADiscoModel):
-        return model.get_distribution(exposure, with_star=False)
+    # if isinstance(model, MCAModel) or isinstance(model, MCADiscoModel):
+    #     return model.get_distribution(exposure, with_star=False)
+    # if isinstance(exposure, )
+    if source_id is not None:
+        return model.get_distribution(exposure, source_id=source_id)
     else:
         return model.get_distribution(exposure)
 
@@ -165,16 +169,16 @@ def get_distribution(model, exposure):
 #     return L2_loss(source)
 
 
-def TV(model, exposure):
-    return TV_loss(get_distribution(model, exposure))
+def TV(model, exposure, source_id=None):
+    return TV_loss(get_distribution(model, exposure, source_id=source_id))
 
 
-def TSV(model, exposure):
-    return TSV_loss(get_distribution(model, exposure))
+def TSV(model, exposure, source_id=None):
+    return TSV_loss(get_distribution(model, exposure, source_id=source_id))
 
 
-def ME(model, exposure):
-    return ME_loss(get_distribution(model, exposure))
+def ME(model, exposure, source_id=None):
+    return ME_loss(get_distribution(model, exposure, source_id=source_id))
 
 
 # def normalise_wavelets(model_params, args):

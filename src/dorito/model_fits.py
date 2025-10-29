@@ -1,10 +1,11 @@
 from amigo.model_fits import ModelFit
-from amigo.core_models import BaseModeller
 from amigo.vis_models import vis_to_im
 from amigo.vis_analysis import AmigoOIData
 from amigo.misc import interp
-from jax import Array, numpy as np
+from jax import lax, numpy as np
+import dLux as dl
 import dLux.utils as dlu
+import equinox as eqx
 
 
 class BaseResolvedFit:
@@ -35,8 +36,28 @@ class BaseResolvedFit:
 
         return distribution
 
+    def simulate(self, model, return_slopes: bool = True, **kwargs):
+        # model = self.nuke_pixel_grads(model)
+        psf = self.model_psf(model)
 
-class ResolvedFit(ModelFit, BaseResolvedFit):
+        image = self.model_interferogram(psf, model, **kwargs)
+
+        # downsample the image to the 3x oversample for the detector/ramp
+        image = image.downsample(model.source_oversample)
+
+        illuminance = self.model_illuminance(image, model)
+        ramp = self.model_ramp(illuminance, model)
+        ramp = self.model_read(ramp, model)
+
+        if return_slopes:
+            return ramp.set("data", np.diff(ramp.data, axis=0))
+        return ramp
+
+    def model_interferogram(self, psf, model, **kwargs):
+        pass
+
+
+class ResolvedFit(BaseResolvedFit, ModelFit):
     """
     Model fit for resolved sources. This adds the log distribution parameter.
     """
@@ -81,23 +102,18 @@ class ResolvedFit(ModelFit, BaseResolvedFit):
 
         return params
 
-    def simulate(self, model, return_slopes: bool = True, rotate: bool = None):
-        # model = self.nuke_pixel_grads(model)
-        psf = self.model_psf(model)
+        source_id: str = (None,)
 
-        # convolve source with PSF
-        image = psf.convolve(model.get_distribution(self, rotate=rotate), method="fft")
-
-        # downsample the image to the 3x oversample for the detector/ramp
-        image = image.downsample(model.source_oversample)
-
-        illuminance = self.model_illuminance(image, model)
-        ramp = self.model_ramp(illuminance, model)
-        ramp = self.model_read(ramp, model)
-
-        if return_slopes:
-            return ramp.set("data", np.diff(ramp.data, axis=0))
-        return ramp
+    def model_interferogram(
+        self,
+        psf,
+        model,
+        rotate: bool = None,
+        source_id: str = None,
+    ):
+        return psf.convolve(
+            model.get_distribution(self, rotate=rotate, source_id=source_id), method="fft"
+        )
 
 
 class DynamicResolvedFit(ResolvedFit):
@@ -112,42 +128,6 @@ class DynamicResolvedFit(ResolvedFit):
                 return "_".join([self.key, self.filter])
 
         return super().get_key(param)
-
-
-class MCAFit(ResolvedFit):
-
-    def initialise_params(self, optics, moat, distribution, contrast):
-
-        params = ModelFit.initialise_params(self, optics)
-
-        # resolved component distributino
-        distribution = (distribution.flatten())[~moat]
-        distribution *= (1 - contrast) / distribution.sum()  # normalise the distribution
-
-        log_dist = np.log10(distribution)
-        params["log_dist"] = self.get_key("log_dist"), log_dist
-
-        # the star component
-        params["contrast"] = self.get_key("contrast"), np.array(contrast)
-
-        return params
-
-    def get_key(self, param):
-
-        match param:
-            case "contrast":
-                return self.filter
-
-        return super().get_key(param)
-
-    def map_param(self, param):
-
-        # Map the appropriate parameter to the correct key
-        if param in ["contrast"]:
-            return f"{param}.{self.get_key(param)}"
-
-        # Else its global
-        return super().map_param(param)
 
 
 # class WaveletFit(ResolvedFit):
@@ -416,49 +396,6 @@ class ResolvedOIFit(OIFit, BaseResolvedFit):
         return self.model_disco(model, distribution=distribution)
 
 
-class MCAOIFit(ResolvedOIFit):
-
-    def initialise_params(self, model, distribution, contrast=0.949):
-
-        params = {}  # Initialise an empty dictionary for parameters
-
-        # resolved component distributino
-        distribution = (distribution.flatten())[~model.moat]
-        distribution *= (1 - contrast) / distribution.sum()  # normalise the distribution
-
-        log_dist = np.log10(distribution)
-        params["log_dist"] = self.get_key("log_dist"), log_dist
-
-        # the star component
-        params["contrast"] = self.get_key("contrast"), np.array(contrast)
-
-        # Fourier normalisation (not to be optimised)
-        params["base_uv"] = self.get_key("base_uv"), self.get_base_uv(model, distribution.shape[0])
-        params
-        return params
-
-    def get_key(self, param):
-
-        match param:
-            case "contrast":
-                return self.filter
-
-        return super().get_key(param)
-
-    def map_param(self, param):
-
-        # Map the appropriate parameter to the correct key
-        match param:
-            case "contrast":
-                return f"{param}.{self.get_key(param)}"
-
-        # Else its global
-        return super().map_param(param)
-
-    def __call__(self, model, rotate=False):
-        return super().__call__(model, rotate=rotate)
-
-
 class TransformedResolvedFit(ResolvedFit):
     """
     Model fit for resolved sources. This adds the log distribution parameter.
@@ -483,3 +420,221 @@ class TransformedResolvedFit(ResolvedFit):
         params["log_dist"] = (self.get_key("log_dist"), coeffs)
 
         return params
+
+
+class PointResolvedFit(TransformedResolvedFit):
+    """
+    Model fit for resolved sources. This adds the log distribution parameter.
+    """
+
+    def get_key(self, param):
+
+        match param:
+            case "contrast":
+                return self.filter
+
+        return super().get_key(param)
+
+    def map_param(self, param):
+
+        # Map the appropriate parameter to the correct key
+        if param in ["contrast"]:
+            return f"{param}.{self.get_key(param)}"
+
+        # Else its global
+        return super().map_param(param)
+
+    def initialise_params(self, optics, coeffs, contrast):
+        """
+        Initialise the parameters for the resolved source model fit.
+        The log distribution is set to a uniform distribution specified by the source size.
+
+        Args:
+            optics: The optics object (to pass to the parent class).
+            source_size: The size of the source distribution (assumed square).
+
+        Returns:
+            params: A dictionary containing the initialised parameters for the model fit.
+        """
+
+        params = ModelFit.initialise_params(self, optics)
+
+        # log distribution
+        params["log_dist"] = (self.get_key("log_dist"), coeffs)
+        params["contrast"] = self.get_key("contrast"), np.array(contrast)
+
+        return params
+
+    def model_interferogram(
+        self,
+        psf,
+        model,
+        rotate: bool = None,
+        source_id: str = None,
+    ):
+
+        if source_id is None:
+            key = self.get_key("contrast")
+        else:
+            key = "_".join((self.get_key("contrast"), source_id))
+        contrast = model.params["contrast"][key]
+        psf1 = psf * (1 - contrast)
+        psf2 = psf * (contrast)
+
+        # convolve source with PSF
+        resolved_component = model.get_distribution(self, rotate=rotate, source_id=source_id)
+        return psf1 + psf2.convolve(resolved_component, method="fft").data
+
+
+class MultiSourceFit(ModelFit):
+
+    exposures: dict
+    calibrator: bool = None  # this will mean multi fit
+    unique_params: list = None
+
+    def __init__(self, file, exp_dict, unique_params=None):
+
+        super().__init__(file)
+
+        for source_id, exp in exp_dict.items():
+            if not isinstance(exp, ModelFit):
+                raise ValueError(
+                    f"All exposures must be ModelFit instances, got {type(exp)} for source_id {source_id}."
+                )
+
+        # Assert all exposures have the same filter
+        filenames = [exp.filename for exp in exp_dict.values()]
+        assert len(set(filenames)) == 1
+
+        self.exposures = exp_dict
+        self.calibrator = None  # this will mean multi fit
+        if unique_params is None:
+            unique_params = [
+                "positions",
+                "fluxes",
+                "spectra",
+                "log_dist",
+                "contrast",
+            ]
+        self.unique_params = unique_params
+
+    def get_key(self, param, source_id=None):
+
+        if source_id is None:
+            print("Warning: source_id is None in get_key, taking the first exposure.")
+            source_id = list(self.exposures.keys())[0]
+
+        exp = self.exposures[source_id]
+
+        if param in self.unique_params:
+            return "_".join([exp.get_key(param), source_id])
+
+        return exp.get_key(param)
+
+    def map_param(self, param, source_id=None):
+
+        if source_id is None:
+            print("Warning: source_id is None in map_param, taking the first exposure.")
+            source_id = list(self.exposures.keys())[0]
+
+        # Map the appropriate parameter to the correct key
+        if param in self.unique_params:
+            return f"{param}.{self.get_key(param, source_id)}"
+
+        # Else its global
+        return self.exposures[source_id].map_param(param)
+
+    def get_spectra(self, model, source_id):
+        wavels, filt_weights = model.filters[self.filter]
+        xs = np.linspace(-1, 1, len(wavels), endpoint=True)
+        spectra_slopes = 1 + model.get(self.map_param("spectra", source_id)) * xs
+        weights = filt_weights * spectra_slopes
+        weights = np.where(weights < 0, 0.0, weights)
+        return wavels, weights / weights.sum()
+
+    def model_wfs(self, model, source_id):
+        pos = dlu.arcsec2rad(model.positions[self.get_key("positions", source_id)])
+        wavels, weights = self.get_spectra(model, source_id)
+
+        optics = self.update_optics(model, source_id)
+        wfs = eqx.filter_jit(optics.propagate)(wavels, pos, weights, return_wf=True)
+
+        # Convert Cartesian to Angular wf
+        if wfs.units == "Cartesian":
+            wfs = wfs.multiply("pixel_scale", 1 / optics.focal_length)
+            wfs = wfs.set(["plane", "units"], ["Focal", "Angular"])
+        return wfs
+
+    def model_psf(self, model, source_id):
+        wfs = self.model_wfs(model, source_id)
+        return dl.PSF(wfs.psf.sum(0), wfs.pixel_scale.mean(0))
+
+    def model_illuminance(self, psf, model, source_id):
+        flux = self.ngroups * 10 ** model.fluxes[self.get_key("fluxes", source_id)]
+        psf = eqx.filter_jit(model.detector.apply)(psf)
+        return psf.multiply("data", flux)
+
+    def update_optics(self, model, source_id):
+        optics = model.optics
+        if "aberrations" in model.params.keys():
+            coefficients = model.aberrations[self.get_key("aberrations", source_id)]
+
+            # Nuke the piston gradient to prevent degeneracy
+            fixed_piston = lax.stop_gradient(coefficients[0, 0])
+            coefficients = coefficients.at[0, 0].set(fixed_piston)
+
+            # Stop gradient for science targets
+            if not self.calibrator:
+                coefficients = lax.stop_gradient(coefficients)
+            optics = optics.set("pupil_mask.abb_coeffs", coefficients)
+
+        if hasattr(model, "reflectivity"):
+            coefficients = model.reflectivity[self.get_key("reflectivity", source_id)]
+            optics = optics.set("pupil_mask.amp_coeffs", coefficients)
+
+        # Set the defocus
+        optics = optics.set("defocus", model.defocus[self.get_key("defocus", source_id)])
+
+        return optics
+
+    def simulate(self, model, return_slopes: bool = True, **kwargs):
+
+        # model/propagate the PSF of each source separately!
+        illuminances = []
+        for source_id, exp in self.exposures.items():
+            psf = self.model_psf(model, source_id)
+            if isinstance(exp, BaseResolvedFit):
+                image = exp.model_interferogram(psf, model, source_id=source_id, **kwargs)
+            else:
+                image = psf
+            image = image.downsample(model.source_oversample)
+            illuminance = self.model_illuminance(image, model, source_id)
+            illuminances.append(illuminance.data)
+
+        illuminance = dl.PSF(np.array(illuminances).sum(axis=0), image.pixel_scale)
+
+        # Just grab any old exposure to get the detector methods
+        exp = list(self.exposures.values())[0]
+        ramp = exp.model_ramp(illuminance, model)
+        ramp = exp.model_read(ramp, model)
+
+        if return_slopes:
+            return ramp.set("data", np.diff(ramp.data, axis=0))
+        return ramp
+
+    # def rotate(self, distribution, clip=True, interp_method="linear"):
+    #     pass
+
+    def print_summary(self):
+        for source_id, exp in self.exposures.items():
+            print(f"Source ID: {source_id}")
+            exp.print_summary()
+            print()
+
+    # def __getattr__(self, name):
+    #     # called only if attribute not found normally
+    #     print(f"Delegating {name} to inner B")
+    #     return getattr(list(self.exposures.values())[0], name)
+
+    def __call__(self, model, return_slopes=True):
+        return self.simulate(model, return_slopes=return_slopes).data

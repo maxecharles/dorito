@@ -7,6 +7,7 @@ from zodiax import Base
 import dLux.utils as dlu
 from scipy.ndimage import binary_dilation
 from .bases import ImageBasis
+from .model_fits import BaseResolvedFit
 
 
 class _BaseResolvedModel(BaseModeller):
@@ -48,7 +49,7 @@ class _AmigoModel(AmigoModel):
         ramp_model,
         read,
         state=None,
-        param_initers: dict = None,
+        param_initers: dict = {},
     ):
         if state is not None:
             optics = optics.set("transmission", state["transmission"])
@@ -66,20 +67,41 @@ class _AmigoModel(AmigoModel):
         for exp in exposures:
             #######################################################################################
             # NOTE: This is the only different bit from the original AmigoModel __init__ method
-            # You could still in theory pass the vis_model as an kwarg, but it is not used here
-            if param_initers is not None:
-                if exp.calibrator:
-                    ps = {}
-                else:
-                    ps = param_initers
-                param_dict = exp.initialise_params(optics, **ps)
+            # You could still in theory pass the vis_model as a kwarg, but it is not used here):
+
+            match exp.calibrator:
+                # For Calibrator Exposures
+                case True:
+                    param_dict = exp.initialise_params(optics)
+                # For Resolved Exposures
+                case False:
+                    param_dict = exp.initialise_params(optics, **param_initers)
+
+                # For MultiSource Exposures
+                case None:
+                    # looping over each sub-exposure
+                    for source_id, sub_exp in exp.exposures.items():
+                        if not isinstance(sub_exp, BaseResolvedFit):
+                            param_dict = sub_exp.initialise_params(optics)
+                        else:
+                            param_dict = sub_exp.initialise_params(optics, **param_initers)
+                        for param, (key, value) in param_dict.items():
+
+                            # if this param is unique per subexposure, append the source id to the key
+                            key = "_".join([key, source_id]) if param in exp.unique_params else key
+
+                            # if param not already in params dict we are building, add it
+                            if param not in params.keys():
+                                params[param] = {}
+
+                            params[param][key] = value
+
+            if exp.calibrator is not None:
+                for param, (key, value) in param_dict.items():
+                    if param not in params.keys():
+                        params[param] = {}
+                    params[param][key] = value
             #######################################################################################
-            else:
-                param_dict = exp.initialise_params(optics)
-            for param, (key, value) in param_dict.items():
-                if param not in params.keys():
-                    params[param] = {}
-                params[param][key] = value
 
         if state is not None:
             params["defocus"] = state["defocus"]
@@ -386,7 +408,7 @@ class TransformedResolvedModel(ResolvedAmigoModel):
         state,
         source_oversample=1,
         window: Array = None,
-        param_initers: dict = None,
+        param_initers: dict = {},
         rotate: bool = True,
     ):
 
@@ -401,10 +423,11 @@ class TransformedResolvedModel(ResolvedAmigoModel):
         self.basis = jtu.map(lambda x: fn(x), basis)
         self.window = window
 
-        init_log_dist = np.log10(param_initers["distribution"])
-        init_coeffs = self.basis.to_basis(init_log_dist)
-        param_initers["coeffs"] = init_coeffs
-        del param_initers["distribution"]
+        if "distribution" in param_initers.keys():
+            init_log_dist = np.log10(param_initers["distribution"])
+            init_coeffs = self.basis.to_basis(init_log_dist)
+            param_initers["coeffs"] = init_coeffs
+            del param_initers["distribution"]
 
         super().__init__(
             exposures,
@@ -424,9 +447,14 @@ class TransformedResolvedModel(ResolvedAmigoModel):
         rotate: bool = None,
         exponentiate=True,
         window=True,
+        source_id: str = None,
     ):
 
-        coeffs = self.params["log_dist"][exposure.get_key("log_dist")]
+        if source_id is None:
+            key = exposure.get_key("log_dist")
+        else:
+            key = "_".join((exposure.get_key("log_dist"), source_id))
+        coeffs = self.params["log_dist"][key]
 
         # exponentiation
         if exponentiate:
