@@ -631,6 +631,32 @@ class MultiSourceFit(ModelFit):
             exp.print_summary()
             print()
 
+    def rotate(self, distribution, clip=True, interp_method="linear"):
+        """
+        Rotate the distribution by the parallactic angle.
+        This method rotates the distribution using the dLux utility functions.
+        Args:
+            distribution: The distribution of the resolved source.
+            clip: If True, clips the distribution to enforce positivity.
+        Returns:
+            Array: The rotated distribution, optionally clipped to enforce positivity.
+        """
+        knots = dlu.pixel_coords(distribution.shape[0], 1.0)
+        samps = dlu.rotate_coords(knots, dlu.deg2rad(self.parang))
+
+        distribution = interp(
+            distribution,
+            knots,
+            samps,
+            method=interp_method,
+        )
+
+        # clipping to enforce positivity
+        if clip:
+            return np.clip(distribution, min=0.0, max=None)
+
+        return distribution
+
     # def __getattr__(self, name):
     #     # called only if attribute not found normally
     #     print(f"Delegating {name} to inner B")
