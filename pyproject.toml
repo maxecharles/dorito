@@ -4,7 +4,7 @@ version = "0.2.0"
 description = "An extension of amigo for regularised image deconvolution for resolved sources."
 readme = "README.md"
 requires-python = ">=3.11"
-license = {file = "LICENSE.md"}
+license = {file = "LICENSE"}
 authors = [
   {name = "Max Charles", email = "max.charles@sydney.edu.au"},
 ]
@@ -26,9 +26,8 @@ classifiers=[
 
 [build-system]
 requires = [
-    "setuptools>=60",
-    "setuptools-scm>=8.0",
-    "wheel"]
+  "setuptools>=60",
+  "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project.optional-dependencies]

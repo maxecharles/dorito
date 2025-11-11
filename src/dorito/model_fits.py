@@ -1,14 +1,29 @@
+"""Fitting helpers and ModelFit subclasses for resolved sources.
+
+This module provides ModelFit classes for fitting resolved sources using
+amigo, including utilities to handle the log distribution parameter,
+rotation by parallactic angle, and simulation of resolved source interferograms.
+"""
+
 from amigo.model_fits import ModelFit
 from amigo.vis_models import vis_to_im
 from amigo.vis_analysis import AmigoOIData
 from amigo.misc import interp
-from jax import lax, numpy as np
-import dLux as dl
+from jax import numpy as np
 import dLux.utils as dlu
-import equinox as eqx
+
+__all__ = [
+    # "BaseResolvedFit",
+    "ResolvedFit",
+    "DynamicResolvedFit",
+    "TransformedResolvedFit",
+    "PointResolvedFit",
+    # "OIFit",
+    "ResolvedOIFit",
+]
 
 
-class BaseResolvedFit:
+class _BaseResolvedFit:
 
     def rotate(self, distribution, clip=True, interp_method="linear"):
         """
@@ -57,12 +72,37 @@ class BaseResolvedFit:
         pass
 
 
-class ResolvedFit(BaseResolvedFit, ModelFit):
-    """
-    Model fit for resolved sources. This adds the log distribution parameter.
+class ResolvedFit(_BaseResolvedFit, ModelFit):
+    """Model fit for resolved (extended) sources.
+
+    This class extends :class:`amigo.model_fits.ModelFit` to add support for a
+    spatial distribution parameter (kept as its base-10 logarithm, stored
+    under the key ``log_dist``). It supplies sensible default initialisation
+    and maps the ``log_dist`` parameter into the expected keyed parameter
+    namespace for per-filter fitting.
+
+    Parameters
+    ----------
+    file : str or path-like
+        Path to the data file or exposure to be passed to :class:`ModelFit`.
+    use_cov : bool, optional
+        Whether to use the covariance information from the data, by default
+        ``True``.
     """
 
     def __init__(self, file, use_cov=True):
+        """Initialise a resolved-source ModelFit.
+
+        Parameters
+        ----------
+        file : str or path-like
+            Path to the data file or exposure to be passed to the parent
+            :class:`amigo.model_fits.ModelFit` initialiser.
+        use_cov : bool, optional
+            Whether to use the covariance information from the data, by
+            default ``True``.
+        """
+
         return super().__init__(file, use_cov=use_cov)
 
     def get_key(self, param):
@@ -80,17 +120,6 @@ class ResolvedFit(BaseResolvedFit, ModelFit):
         return super().map_param(param)
 
     def initialise_params(self, optics, distribution):
-        """
-        Initialise the parameters for the resolved source model fit.
-        The log distribution is set to a uniform distribution specified by the source size.
-
-        Args:
-            optics: The optics object (to pass to the parent class).
-            source_size: The size of the source distribution (assumed square).
-
-        Returns:
-            params: A dictionary containing the initialised parameters for the model fit.
-        """
 
         params = super().initialise_params(optics)
 
@@ -112,9 +141,18 @@ class ResolvedFit(BaseResolvedFit, ModelFit):
 
 
 class DynamicResolvedFit(ResolvedFit):
-    """
-    Model fit for resolved sources where each exposure has a different
-    intensity distribution.
+    """Resolved fit where each exposure has its own distribution.
+
+    For time-series or sequence data where every exposure can have an
+    independent resolved-source distribution, this class modifies the
+    parameter keying so that distribution parameters are unique per
+    exposure (the key includes the exposure ``self.key`` and the filter).
+
+    Notes
+    -----
+    Only the keying behaviour differs from :class:`ResolvedFit` — the
+    underlying parameter representation and simulation pipeline remain the
+    same.
     """
 
     def get_key(self, param):
@@ -124,8 +162,105 @@ class DynamicResolvedFit(ResolvedFit):
 
         return super().get_key(param)
 
+    def __init__(self, file, use_cov=True):
+        """Initialise a dynamic resolved fit.
 
-class OIFit(AmigoOIData):
+        This class behaves like :class:`ResolvedFit` but keys distribution
+        parameters per-exposure. The constructor accepts the same arguments
+        as :class:`ResolvedFit` and delegates to the parent initialiser.
+
+        Parameters
+        ----------
+        file : str or path-like
+            Path to the data file or exposure.
+        use_cov : bool, optional
+            Whether to use covariance information, by default ``True``.
+        """
+
+        return super().__init__(file, use_cov=use_cov)
+
+
+class TransformedResolvedFit(ResolvedFit):
+    """Resolved-source fit using coefficients describing a transformed basis.
+
+    This variant initialises the ``log_dist`` parameter from a set of
+    coefficients (for example a set of basis coefficients or a compressed
+    representation) rather than from an explicit full image distribution.
+
+    """
+
+    def initialise_params(self, optics, coeffs):
+
+        params = ModelFit.initialise_params(self, optics)
+
+        # log distribution
+        params["log_dist"] = (self.get_key("log_dist"), coeffs)
+
+        return params
+
+
+class PointResolvedFit(TransformedResolvedFit):
+    """Resolved fit combining an unresolved point-like component and an extended component.
+
+    This fit represents the source as a superposition of a point source
+    component and a resolved (extended) component. This is useful for
+    modelling systems like young stars with extendedprotoplanetary disks.
+
+    Parameters
+    ----------
+    optics : object
+        The optics/environment object passed to :meth:`initialise_params`.
+    coeffs : array-like
+        Coefficients used to build the transformed (resolved) component.
+    contrast : float or array-like
+        Fractional flux in the point component (per-filter if keyed).
+
+    """
+
+    def get_key(self, param):
+
+        match param:
+            case "contrast":
+                return self.filter
+
+        return super().get_key(param)
+
+    def map_param(self, param):
+
+        # Map the appropriate parameter to the correct key
+        if param in ["contrast"]:
+            return f"{param}.{self.get_key(param)}"
+
+        # Else its global
+        return super().map_param(param)
+
+    def initialise_params(self, optics, coeffs, contrast):
+
+        params = ModelFit.initialise_params(self, optics)
+
+        # log distribution
+        params["log_dist"] = (self.get_key("log_dist"), coeffs)
+        params["contrast"] = self.get_key("contrast"), np.array(contrast)
+
+        return params
+
+    def model_interferogram(
+        self,
+        psf,
+        model,
+        rotate: bool = None,
+    ):
+
+        contrast = model.params["contrast"][self.get_key("contrast")]
+        psf1 = psf * (1 - contrast)
+        psf2 = psf * (contrast)
+
+        # convolve source with PSF
+        resolved_component = model.get_distribution(self, rotate=rotate)
+        return psf1 + psf2.convolve(resolved_component, method="fft").data
+
+
+class _OIFit(AmigoOIData):
     """
     Repurposing the AmigoOIData class to act as an Exposure/ModelFit amigo class.
     This is useful for fitting to this OI data.
@@ -162,26 +297,32 @@ class OIFit(AmigoOIData):
         pass
 
 
-class ResolvedOIFit(OIFit, BaseResolvedFit):
-    """
-    Extending the OIFit class to include methods for handling resolved source fits.
+class ResolvedOIFit(_OIFit, _BaseResolvedFit):
+    """OI-data backed resolved-source fit utilities.
+
+    This class mixes the OI-data wrapper behaviour from :class:`_OIFit` with
+    the resolved-source helpers in :class:`_BaseResolvedFit`. It provides
+    methods to convert distributions into OTFs/visibilities, produce model
+    DISCO outputs, and compute dirty images usable for visualisation and
+    normalisation.
+
+    Methods
+    -------
+    initialise_params(model, distribution)
+        Prepare ``log_dist`` and ``base_uv`` parameters for an OI fit.
+    to_otf(model, distribution)
+        Return a dLux MFT representing the distribution in OTF space.
+    to_cvis(model, distribution)
+        Convert an image distribution into flattened complex visibilities
+        suitable for DISCO-style modelling.
+    dirty_image(...)
+        Compute a dirty image from the underlying observed OI visibilities.
+    __call__(model, rotate=None)
+        Produce the amplitudes/phases used by DISCO from the model
+        distribution.
     """
 
     def initialise_params(self, model, distribution):
-        """
-        Initialise the parameters for the resolved OI fit.
-        This method sets up the log distribution and base UV parameters.
-        The log distribution is the logarithm of the resolved source distribution,
-        normalised to sum to 1. The base UV is the Fourier transform of a delta function
-        at the centre of the distribution, which is used for normalisation.
-
-        Args:
-            model: The model object containing the parameters.
-            distribution: The distribution of the resolved source.
-
-        Returns:
-            params: A dictionary containing the initialised parameters for the model fit.
-        """
 
         params = {}  # Initialise an empty dictionary for parameters
         distribution /= distribution.sum()  # normalise the distribution
@@ -200,10 +341,6 @@ class ResolvedOIFit(OIFit, BaseResolvedFit):
                 return self.filter  # this is probably unnecessary
 
     def map_param(self, param):
-        """
-        The `key` argument will return only the _key_ extension of the parameter path,
-        which is required for object initialisation.
-        """
 
         # Map the appropriate parameter to the correct key
         if param in ["log_dist", "base_uv"]:
@@ -251,6 +388,40 @@ class ResolvedOIFit(OIFit, BaseResolvedFit):
         )
 
     def to_cvis(self, model, distribution):
+        """Convert an image distribution into complex visibilities for DISCO.
+
+        The pipeline performed here is:
+        1. Transform the image distribution to the OTF plane via
+           :meth:`to_otf` (a dLux MFT).
+        2. Normalise the complex u,v plane by the stored ``base_uv`` for this
+           fit (see :meth:`initialise_params`).
+        3. Downsample the u,v plane to the DISCO sampling using
+           :func:`dlu.downsample`.
+        4. Flatten the 2D u,v array and return the first half of the vector —
+           for a real-valued image the Fourier transform is Hermitian symmetric
+           and only half the plane is needed.
+
+        Parameters
+        ----------
+        model : object
+            Model object providing UV/OTF parameters and access to
+            ``model.params['base_uv']`` for normalisation.
+        distribution : array-like
+            2D image array (npixels x npixels) describing the resolved source
+            brightness distribution.
+
+        Returns
+        -------
+        numpy.ndarray
+            1-D complex array containing the flattened (half) complex
+            visibilities suitable for DISCO-style modelling.
+
+        Notes
+        -----
+        The returned vector contains only the first half of the flattened
+        u,v array because of u/v symmetry; callers expecting a full u,v
+        representation should reconstruct it using Hermitian symmetry.
+        """
 
         # Perform MFT and move to OTF plane
         uv = self.to_otf(model, distribution)  # shape (102, 102)
@@ -345,88 +516,3 @@ class ResolvedOIFit(OIFit, BaseResolvedFit):
         distribution = model.get_distribution(self, rotate=rotate)
 
         return self.model_disco(model, distribution=distribution)
-
-
-class TransformedResolvedFit(ResolvedFit):
-    """
-    Model fit for resolved sources. This adds the log distribution parameter.
-    """
-
-    def initialise_params(self, optics, coeffs):
-        """
-        Initialise the parameters for the resolved source model fit.
-        The log distribution is set to a uniform distribution specified by the source size.
-
-        Args:
-            optics: The optics object (to pass to the parent class).
-            source_size: The size of the source distribution (assumed square).
-
-        Returns:
-            params: A dictionary containing the initialised parameters for the model fit.
-        """
-
-        params = ModelFit.initialise_params(self, optics)
-
-        # log distribution
-        params["log_dist"] = (self.get_key("log_dist"), coeffs)
-
-        return params
-
-
-class PointResolvedFit(TransformedResolvedFit):
-    """
-    Model fit for resolved sources. This adds the log distribution parameter.
-    """
-
-    def get_key(self, param):
-
-        match param:
-            case "contrast":
-                return self.filter
-
-        return super().get_key(param)
-
-    def map_param(self, param):
-
-        # Map the appropriate parameter to the correct key
-        if param in ["contrast"]:
-            return f"{param}.{self.get_key(param)}"
-
-        # Else its global
-        return super().map_param(param)
-
-    def initialise_params(self, optics, coeffs, contrast):
-        """
-        Initialise the parameters for the resolved source model fit.
-        The log distribution is set to a uniform distribution specified by the source size.
-
-        Args:
-            optics: The optics object (to pass to the parent class).
-            source_size: The size of the source distribution (assumed square).
-
-        Returns:
-            params: A dictionary containing the initialised parameters for the model fit.
-        """
-
-        params = ModelFit.initialise_params(self, optics)
-
-        # log distribution
-        params["log_dist"] = (self.get_key("log_dist"), coeffs)
-        params["contrast"] = self.get_key("contrast"), np.array(contrast)
-
-        return params
-
-    def model_interferogram(
-        self,
-        psf,
-        model,
-        rotate: bool = None,
-    ):
-
-        contrast = model.params["contrast"][self.get_key("contrast")]
-        psf1 = psf * (1 - contrast)
-        psf2 = psf * (contrast)
-
-        # convolve source with PSF
-        resolved_component = model.get_distribution(self, rotate=rotate)
-        return psf1 + psf2.convolve(resolved_component, method="fft").data

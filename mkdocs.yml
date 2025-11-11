@@ -24,6 +24,7 @@ plugins:
         python:
           options:
             docstring_style: "numpy"
+            members_order: source
 
 markdown_extensions:
   - admonition
@@ -87,4 +88,10 @@ nav:
   - Home: README.md
   - Examples:
       - Image Plane Fitting: docs/examples/image_plane_fitting.md
-  # - API:
+  - API:
+      - model_fits: docs/api/model_fits.md
+      - models: docs/api/models.md
+      - stats: docs/api/stats.md
+      - bases: docs/api/bases.md
+      - plotting: docs/api/plotting.md
+      - misc: docs/api/misc.md

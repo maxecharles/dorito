@@ -1,7 +1,19 @@
+"""Models and Amigo model subclasses used for resolved sources.
+
+This module implements resolved-source models for both image plane
+fitting and interferometric data (DISCO).
+"""
+
 from jax import Array, numpy as np, tree as jtu
 from amigo.core_models import BaseModeller, AmigoModel
 import dLux.utils as dlu
 from .bases import ImageBasis
+
+__all__ = [
+    "ResolvedAmigoModel",
+    "ResolvedDiscoModel",
+    "TransformedResolvedModel",
+]
 
 
 class _BaseResolvedModel(BaseModeller):
@@ -105,8 +117,32 @@ class _AmigoModel(AmigoModel):
 
 
 class ResolvedAmigoModel(_AmigoModel, _BaseResolvedModel):
-    """
-    Amigo model for resolved sources.
+    """Amigo model specialised for resolved (image-plane) sources.
+
+    This class composes the internal `_AmigoModel` parameter initialisation
+    behaviour with the `_BaseResolvedModel` helpers for retrieving a
+    resolved-source distribution. It is the primary model used in the
+    examples to represent a resolved astronomical source for use with the
+    amigo fitting machinery.
+
+    Parameters
+    ----------
+    exposures : sequence
+        Sequence of exposure / fit objects describing each observation.
+    optics, detector, ramp_model, read
+        Amigo-style objects used to build the forward model (see amigo
+        documentation for expected types).
+    state : mapping, optional
+        Optional calibration state used to override optics/detector/ramp
+        initial values.
+    rotate : bool, optional
+        If True (default) apply exposure rotation to distributions.
+    source_oversample : int, optional
+        Oversampling factor for source-plane operations. When setting an
+        oversampling factor > 1, the optics model must be initialised
+        with an oversample to match (e.g. 3 times source_oversample).
+    param_initers : dict, optional
+        Parameter initialiser values forwarded to exposure initialisation.
     """
 
     source_oversample: int = 1
@@ -129,205 +165,26 @@ class ResolvedAmigoModel(_AmigoModel, _BaseResolvedModel):
         super().__init__(exposures, optics, detector, ramp_model, read, state, param_initers)
 
 
-# class MCAModel(ResolvedAmigoModel):
-
-#     size: int = None
-#     moat: np.ndarray = None  # Placeholder for the moat attribute
-#     star: np.ndarray = None  # Placeholder for the star attribute
-
-#     def __init__(
-#         self,
-#         exposures: list,
-#         optics,
-#         detector,
-#         ramp_model,
-#         read,
-#         state,
-#         param_initers: dict,
-#         rotate=True,
-#         source_oversample=1,
-#         moat_width: int = 0,
-#     ):
-
-#         dist_shape = param_initers["distribution"].shape
-#         zeros = np.zeros(dist_shape).flatten()
-#         star = zeros.at[zeros.size // 2].set(True)
-
-#         if moat_width == 0:
-#             moat_mask = np.array(star, dtype=bool)
-#         else:
-#             moat_mask = binary_dilation(star.reshape(dist_shape), iterations=moat_width).flatten()
-
-#         # Precompute safe indices for use in JIT-compiled code
-#         self.moat = np.where(~moat_mask)[0]  # shape (N,)
-
-#         self.star = star
-#         self.size = dist_shape[0]
-
-#         param_initers["moat"] = self.moat
-
-#         super().__init__(
-#             exposures=exposures,
-#             optics=optics,
-#             detector=detector,
-#             ramp_model=ramp_model,
-#             read=read,
-#             state=state,
-#             rotate=rotate,
-#             source_oversample=source_oversample,
-#             param_initers=param_initers,
-#         )
-
-#     def get_distribution(self, exposure, rotate: bool = None, with_star: bool = True):
-#         """
-#         Get the distribution from the exposure.
-
-#         Args:
-#             exposure: The exposure object containing the distribution key.
-#         Returns:
-#             Array: The intensity distribution of the source.
-#         """
-
-#         zeros = np.zeros(self.size * self.size)
-#         values = 10 ** self.params["log_dist"][exposure.get_key("log_dist")]
-#         contrast = self.params["contrast"][exposure.get_key("contrast")]
-
-#         resolved_component = zeros.at[self.moat].set(values).reshape((self.size, self.size))
-
-#         if with_star:
-#             star_component = contrast * self.star.reshape((self.size, self.size))
-#             distribution = resolved_component + star_component
-#         else:
-#             distribution = resolved_component
-
-#         if rotate is None:
-#             rotate = self.rotate
-#         if rotate:
-#             distribution = exposure.rotate(distribution)
-
-#         return distribution
-
-
-class ResolvedDiscoModel(_BaseResolvedModel):
-    """
-    A class to hold the parameters of a resolved source model to be used in fitting
-    to DISCO data.
-    """
-
-    uv_npixels: int
-    uv_pscale: float
-    oversample: float
-    psf_pixel_scale: float
-
-    def __init__(
-        self,
-        ois: list,
-        distribution: Array,
-        uv_npixels: int,
-        uv_pscale: float,
-        oversample: float = 1.0,
-        psf_pixel_scale: float = 0.065524085,  # arcsec/pixel
-        rotate: bool = True,
-    ):
-
-        self.uv_npixels = uv_npixels
-        self.oversample = oversample
-        self.uv_pscale = uv_pscale
-        self.psf_pixel_scale = psf_pixel_scale
-        self.rotate = rotate
-
-        params = {}
-        for oi in ois:
-            param_dict = oi.initialise_params(self, distribution)
-            for param, (key, value) in param_dict.items():
-                if param not in params.keys():
-                    params[param] = {}
-                params[param][key] = value
-
-        super().__init__(params)
-
-    @property
-    def pscale_in(self):
-        """
-        The pixel scale of the image plane, in radians per pixel.
-        """
-        return dlu.arcsec2rad(self.psf_pixel_scale / self.oversample)
-
-
-# class MCADiscoModel(ResolvedDiscoModel):
-
-#     size: int = None
-#     moat: np.ndarray = None  # Placeholder for the moat attribute
-#     star: np.ndarray = None  # Placeholder for the star attribute
-
-#     def __init__(
-#         self,
-#         ois: list,
-#         distribution: np.ndarray,
-#         uv_npixels: int,
-#         uv_pscale: float,
-#         oversample: float = 1.0,
-#         psf_pixel_scale: float = 0.065524085,  # arcsec/pixel
-#         moat_width: int = 3,
-#         rotate=True,
-#     ):
-
-#         dist_shape = distribution.shape
-#         zeros = np.zeros(dist_shape).flatten()
-#         star = zeros.at[zeros.size // 2].set(True)
-
-#         moat_mask = binary_dilation(star.reshape(dist_shape), iterations=moat_width).flatten()
-#         # Precompute safe indices for use in JIT-compiled code
-#         self.moat = np.where(~moat_mask)[0]  # shape (N,)
-
-#         self.star = star
-#         self.size = dist_shape[0]
-
-#         super().__init__(
-#             ois,
-#             distribution,
-#             uv_npixels,
-#             uv_pscale,
-#             oversample,
-#             psf_pixel_scale,
-#             rotate,
-#         )
-
-#     def get_distribution(self, exposure, rotate: bool = None, with_star: bool = True):
-#         """
-#         Get the distribution from the exposure.
-
-#         Args:
-#             exposure: The exposure object containing the distribution key.
-#         Returns:
-#             Array: The intensity distribution of the source.
-#         """
-
-#         zeros = np.zeros(self.size * self.size)
-#         values = 10 ** self.params["log_dist"][exposure.get_key("log_dist")]
-#         contrast = self.params["contrast"][exposure.get_key("contrast")]
-
-#         resolved_component = zeros.at[self.moat].set(values).reshape((self.size, self.size))
-
-#         if with_star:
-#             star_component = contrast * self.star.reshape((self.size, self.size))
-#             distribution = resolved_component + star_component
-#         else:
-#             distribution = resolved_component
-
-#         if rotate is None:
-#             rotate = self.rotate
-#         if rotate:
-#             distribution = exposure.rotate(distribution)
-
-#         return distribution
-
-
-import jax.tree as jtu
-from dorito.models import ResolvedAmigoModel
-
-
 class TransformedResolvedModel(ResolvedAmigoModel):
+    """Resolved model that stores and operates in a compact image basis.
+
+    This class wraps a provided ``ImageBasis`` object and stores the
+    source distribution as basis coefficients. When initialising, if a
+    ``distribution`` is provided in ``param_initers`` it is converted to
+    basis coefficients and stored under the ``coeffs`` initialiser key.
+
+    Parameters
+    ----------
+    basis : ImageBasis
+        Basis object providing ``to_basis`` / ``from_basis`` conversions.
+    window : Array, optional
+        Optional multiplicative window applied to reconstructed images.
+    source_oversample : int, optional
+        Oversampling factor for source-plane operations.
+    param_initers : dict, optional
+        Parameter initialisers; accepts a ``distribution`` entry which will
+        be converted to ``coeffs`` via the supplied ``basis``.
+    """
 
     basis: None
     window: Array
@@ -403,3 +260,77 @@ class TransformedResolvedModel(ResolvedAmigoModel):
             distribution = exposure.rotate(distribution)
 
         return distribution
+
+
+class ResolvedDiscoModel(_BaseResolvedModel):
+    """Resolved-source model container for DISCO / interferometric fits.
+
+    This lightweight container holds parameters required to transform an
+    image-plane distribution into the complex visibilities used by the
+    DISCO-style fitting code. The constructor collects per-oi parameters by
+    calling each `oi.initialise_params(self, distribution)` and assembling a
+    parameter mapping compatible with the rest of the amigo pipeline.
+
+    Parameters
+    ----------
+    ois : list
+        List of OI-like exposure objects providing `initialise_params` and
+        other data accessors used during fitting.
+    distribution : Array
+        Initial image-plane distribution used to derive initial parameters.
+    uv_npixels : int
+        Number of pixels in the output u/v plane used for transforms.
+    uv_pscale : float
+        Pixel scale in the u/v plane.
+    oversample : float, optional
+        Image-plane oversampling factor used by the model (default: 1.0).
+    psf_pixel_scale : float, optional
+        PSF pixel scale in arcseconds per pixel (default chosen for examples).
+    rotate : bool, optional
+        If True, model-dirty images and transforms will be rotated by the
+        exposure parallactic angle when requested.
+
+    Attributes
+    ----------
+    pscale_in : float
+        Property returning the image-plane pixel scale in radians per pixel.
+    """
+
+    uv_npixels: int
+    uv_pscale: float
+    oversample: float
+    psf_pixel_scale: float
+
+    def __init__(
+        self,
+        ois: list,
+        distribution: Array,
+        uv_npixels: int,
+        uv_pscale: float,
+        oversample: float = 1.0,
+        psf_pixel_scale: float = 0.065524085,  # arcsec/pixel
+        rotate: bool = True,
+    ):
+
+        self.uv_npixels = uv_npixels
+        self.oversample = oversample
+        self.uv_pscale = uv_pscale
+        self.psf_pixel_scale = psf_pixel_scale
+        self.rotate = rotate
+
+        params = {}
+        for oi in ois:
+            param_dict = oi.initialise_params(self, distribution)
+            for param, (key, value) in param_dict.items():
+                if param not in params.keys():
+                    params[param] = {}
+                params[param][key] = value
+
+        super().__init__(params)
+
+    @property
+    def pscale_in(self):
+        """
+        The pixel scale of the image plane, in radians per pixel.
+        """
+        return dlu.arcsec2rad(self.psf_pixel_scale / self.oversample)
