@@ -15,7 +15,7 @@ plugins:
   - same-dir
   - autorefs
   - simple:
-      ignore_folders:
+      ignore:
         - tests
         - zodiax
   - mkdocstrings:

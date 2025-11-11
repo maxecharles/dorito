@@ -53,9 +53,10 @@ def fwhm_to_sigma(fwhm):
     ----------
     fwhm : float
         Full width at half maximum.
-
-    Returns:
-        float: Corresponding standard deviation (sigma).
+    Returns
+    -------
+    float
+        Corresponding standard deviation (sigma).
     """
     return fwhm / (2 * np.sqrt(2 * np.log(2)))
 

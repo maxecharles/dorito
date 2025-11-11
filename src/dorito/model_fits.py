@@ -204,17 +204,13 @@ class PointResolvedFit(TransformedResolvedFit):
 
     This fit represents the source as a superposition of a point source
     component and a resolved (extended) component. This is useful for
-    modelling systems like young stars with extendedprotoplanetary disks.
+    modelling systems like young stars with extended protoplanetary disks.
 
-    Parameters
-    ----------
-    optics : object
-        The optics/environment object passed to :meth:`initialise_params`.
-    coeffs : array-like
-        Coefficients used to build the transformed (resolved) component.
-    contrast : float or array-like
-        Fractional flux in the point component (per-filter if keyed).
-
+    Notes
+    -----
+    Parameters for building the transformed/resolved component are described
+    on :meth:`initialise_params` (for example ``optics``, ``coeffs`` and
+    ``contrast`` are the arguments used when initialising parameters).
     """
 
     def get_key(self, param):
