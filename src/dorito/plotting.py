@@ -2,8 +2,6 @@ from jax import numpy as np
 from dLux import utils as dlu
 from matplotlib import pyplot as plt
 import matplotlib as mpl
-from PIL import Image
-import os
 
 # for setting NaNs to grey
 seismic = mpl.colormaps["seismic"]
@@ -59,9 +57,6 @@ def get_arcsec_extents(pixel_scale, shape):
     Get the arcsec extents of an image given the pixel scale and shape.
     """
     return np.array([0.5, -0.5, -0.5, 0.5]) * pixel_scale * shape[0]
-
-
-from dorito.plotting import get_arcsec_extents
 
 
 def plot_result(
