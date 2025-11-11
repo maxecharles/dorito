@@ -33,6 +33,11 @@ jobs:
           pip install mkdocs
           pip install mkdocs-material
           pip install "mkdocstrings[python]"
+          pip install mkdocs-same-dir
+          pip install pymdown-extensions
+          pip install mkdocs-pymdownx-material-extras
+          pip install mkdocs-autorefs
+          pip install mkdocs-simple-plugin
 
       - name: Run tests
         run: pytest -q
