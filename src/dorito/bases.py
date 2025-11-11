@@ -13,7 +13,7 @@ def inscribed_circ_basis(size: int, return_window=True) -> Array:
     mask = onp.where(window_arr.flatten())[0]
     M = onp.eye(size**2)[:, mask]
     if return_window:
-        return ImageBasis(np.array(M)), window_arr
+        return ImageBasis(np.array(M), ortho=True), window_arr
     return ImageBasis(np.array(M))
 
 
@@ -28,7 +28,7 @@ def inscribed_annulus_basis(size: int, iterations=2, return_window=True) -> Arra
     mask = onp.where(window_arr.flatten())[0]
     M = onp.eye(size**2)[:, mask]
     if return_window:
-        return ImageBasis(np.array(M)), window_arr
+        return ImageBasis(np.array(M), ortho=True), window_arr
     return ImageBasis(np.array(M))
 
 
@@ -39,12 +39,15 @@ class ImageBasis(Base):
     n_basis: int = eqx.field(static=True)
     size: int = eqx.field(static=True)
 
-    def __init__(self, transform_matrix: Array, n_basis: int = None):
+    def __init__(self, transform_matrix: Array, n_basis: int = None, ortho=False):
         if n_basis is None:
             n_basis = transform_matrix.shape[1]
         self.n_basis = n_basis
         self.M = transform_matrix[:, :n_basis]
-        self.M_inv = np.linalg.pinv(self.M)
+        if ortho:
+            self.M_inv = self.M.T
+        else:
+            self.M_inv = np.linalg.pinv(self.M)
         self.size = int(np.sqrt(self.M.shape[0]))
 
     def to_basis(self, img: Array) -> Array:
