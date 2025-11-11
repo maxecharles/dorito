@@ -1,0 +1,7 @@
+amigo
+jax
+jaxlib
+zodiax>=0.5.0
+dLux
+matplotlib
+photutils

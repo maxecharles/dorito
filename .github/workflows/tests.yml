@@ -1,0 +1,47 @@
+name: tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install `amigo` from GitHub
+        run: pip install --upgrade git+https://github.com/LouisDesdoigts/amigo.git
+
+      - name: Install package (dev extras)
+        run: pip install -e '.[dev]'
+
+      - name: Install additional tools
+        run: |
+          pip install photutils
+          pip install mkdocs
+          pip install mkdocs-material
+          pip install "mkdocstrings[python]"
+          pip install mkdocs-same-dir
+          pip install pymdown-extensions
+          pip install mkdocs-pymdownx-material-extras
+          pip install mkdocs-autorefs
+          pip install mkdocs-simple-plugin
+
+      - name: Run tests
+        run: pytest -q
+
+      - name: Build docs
+        run: mkdocs build
+

@@ -1,4 +1,4 @@
-name: Documentation
+name: docs
 on:
   push:
     branches:
@@ -7,14 +7,13 @@ on:
 permissions:
   contents: write
 jobs:
-  documentation:
+  deploy-docs:
     runs-on: ubuntu-latest
-    steps: 
+    steps:
       - name: checkout all
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
-
 
       - name: python install
         uses: actions/setup-python@v1
@@ -28,10 +27,10 @@ jobs:
           pip install mkdocs-same-dir
           pip install pymdown-extensions
           pip install mkdocs-pymdownx-material-extras
-          pip install mkdocs-autorefs  
+          pip install mkdocs-autorefs
           pip install mkdocs-simple-plugin
           pip install mkdocstrings
-          pip install mkdocstrings[python]
+          pip install "mkdocstrings[python]"
           pip install mkdocs-material
 
       - name: generate and deploy documentation

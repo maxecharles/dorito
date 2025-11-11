@@ -1,16 +1,42 @@
+"""Plotting helpers used by notebooks and examples.
+
+This module provides small convenience functions for common plotting tasks
+used across the dorito examples, such as plotting the diffraction-limit scale
+bar, computing axis extents in arcseconds and a standard image plotting
+function that handles normalization, rotation and optional scale bars.
+"""
+
 from jax import numpy as np
 from dLux import utils as dlu
 from matplotlib import pyplot as plt
 import matplotlib as mpl
-from PIL import Image
-import os
 
 # for setting NaNs to grey
 seismic = mpl.colormaps["seismic"]
 seismic.set_bad("k", 0.5)
 
+__all__ = [
+    "plot_diffraction_limit",
+    "get_arcsec_extents",
+    "plot_result",
+]
+
 
 def plot_diffraction_limit(model, ax=None, OOP=False):
+    """Plot a scale bar showing the diffraction limit (lambda / D).
+
+    Parameters
+    ----------
+    model
+        Object exposing ``source_spectrum`` and ``optics.diameter`` used to
+        compute an effective wavelength and the diffraction-limited scale.
+    ax : matplotlib.axes.Axes, optional
+        Axis to draw onto. If not provided, the function draws to the current
+        pyplot axes.
+    OOP : bool, optional
+        If True and ``ax`` is provided, draw the bar on the supplied axis and
+        return the axis.
+    """
     effective_wl = np.dot(model.source_spectrum.wavelengths, model.source_spectrum.weights)
     diff_lim = dlu.rad2arcsec(effective_wl / model.optics.diameter)
     scale_length = diff_lim
@@ -55,13 +81,17 @@ def plot_diffraction_limit(model, ax=None, OOP=False):
 
 
 def get_arcsec_extents(pixel_scale, shape):
-    """
-    Get the arcsec extents of an image given the pixel scale and shape.
+    """Return axis extents in arcseconds for use with ``imshow``.
+
+    Parameters
+    ----------
+    pixel_scale : float
+        Pixel scale in arcseconds per pixel.
+    shape : tuple
+        Shape of the image (ny, nx) or (n, n). The function uses the first
+        axis length to compute the extent.
     """
     return np.array([0.5, -0.5, -0.5, 0.5]) * pixel_scale * shape[0]
-
-
-from dorito.plotting import get_arcsec_extents
 
 
 def plot_result(
@@ -81,6 +111,12 @@ def plot_result(
     translate=(0.0, 0.0),
     ticks=[0.5, 0, -0.5],
 ):
+    """Convenience wrapper to display an image with sensible defaults.
+
+    This helper sets axis labels, background colour, computes an extent in
+    arcseconds from the provided `pixel_scale` and applies optional rotation
+    and scaling to the resulting image artist.
+    """
 
     ax.set_facecolor(bg_color)  # Set the background colour
     ax.tick_params(direction="out")
@@ -133,54 +169,3 @@ def plot_result(
         im.set_transform(trans_data)  # applying transformation to image
 
     return im
-
-
-# def tree_plot(coeffs):
-
-#     # approximation
-#     A = coeffs[0].squeeze()
-#     levels = [A]
-
-#     # details
-#     for level in coeffs[1:]:
-#         H = level[0].squeeze()
-#         V = level[1].squeeze()
-#         D = level[2].squeeze()
-
-#         levels += [H, V, D]
-
-#     lvl = len(coeffs[1:])
-
-#     # generating subplot axes kwargs
-#     axes = [
-#         (2**lvl, 2**lvl, 1),
-#         *[(2**j, 2**j, i) for j in range(lvl, 0, -1) for i in [2, 2**j + 1, 2**j + 2]],
-#     ]
-
-#     # plotting
-#     plt.figure(figsize=2 * [6 + (2**lvl)])
-
-#     # looping over subplots
-#     for i, ax_kwargs in enumerate(axes):
-
-#         arr = levels[i]
-
-#         # approximatino
-#         if i == 0:
-#             cmap = "viridis"
-#             vmin, vmax = None, None
-
-#         # details
-#         else:
-#             cmap = "cmr.wildfire"
-#             v = np.nanmax(np.abs(arr))
-#             vmin, vmax = -v, v
-
-#         imshow_kwargs = {"cmap": cmap, "vmin": vmin, "vmax": vmax}
-
-#         ax = plt.subplot(*ax_kwargs)
-#         ax.axis("off")
-#         ax.imshow(arr, **imshow_kwargs)
-
-#     plt.tight_layout()
-#     plt.show()
