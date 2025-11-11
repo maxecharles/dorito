@@ -1,0 +1,12 @@
+amigo
+jax
+jaxlib
+zodiax>=0.4.1
+dLux
+matplotlib
+
+[dev]
+pytest
+black
+ruff
+pre-commit
