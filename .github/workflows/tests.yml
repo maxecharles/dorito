@@ -39,6 +39,18 @@ jobs:
           pip install mkdocs-autorefs
           pip install mkdocs-simple-plugin
 
+      - name: Debug: list files and collect tests
+        run: |
+          echo "Working directory: $(pwd)"
+          echo "--- ls -la (repo root) ---"
+          ls -la
+          echo "--- docs/ ---"
+          ls -la docs || true
+          echo "--- tests/ ---"
+          ls -la tests || true
+          echo "--- pytest collect-only ---"
+          pytest --collect-only -q || true
+
       - name: Run tests
         run: pytest -q
 
