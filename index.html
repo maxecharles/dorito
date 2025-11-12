@@ -273,6 +273,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="." class="md-nav__link md-nav__link--active">
         
   
@@ -289,6 +307,36 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -661,6 +709,30 @@
 <p>We are working hard to create more documentation and example notebooks to share with the community here. Thank you for your patience, and please do not hesitate to reach out with any questions or queries. You can reach me (Max) at
 <div class="highlight"><pre><span></span><code>max.charles@sydney.edu.au
 </code></pre></div></p>
+<h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">¤</a></h2>
+<p><code>dorito</code> is an extension of <code>amigo</code> and depends heavily on its runtime and modelling APIs. For development and many integration tests you should install <code>amigo</code> from source and make it available to your Python environment before installing <code>dorito</code>.</p>
+<p>Basic walk-through to install <code>amigo</code> and <code>dorito</code> from source (recommended):</p>
+<ol>
+<li>Create and activate a clean environment (example uses <code>conda</code> but <code>venv</code> works too):</li>
+</ol>
+<div class="highlight"><pre><span></span><code>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>your_env
+conda<span class="w"> </span>activate<span class="w"> </span>your_env
+</code></pre></div>
+<ol>
+<li>Clone and install <code>amigo</code> from source:</li>
+</ol>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/LouisDesdoigts/amigo.git
+<span class="nb">cd</span><span class="w"> </span>amigo
+pip<span class="w"> </span>install<span class="w"> </span>.
+<span class="nb">cd</span><span class="w"> </span>..
+</code></pre></div>
+<ol>
+<li>Clone and install <code>dorito</code> (from this repository) into the same environment:</li>
+</ol>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/maxecharles/dorito.git
+<span class="nb">cd</span><span class="w"> </span>dorito
+pip<span class="w"> </span>install<span class="w"> </span>.
+</code></pre></div>
 
 
 
