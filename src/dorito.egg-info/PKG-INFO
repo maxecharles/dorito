@@ -71,7 +71,7 @@ max.charles@sydney.edu.au
 
 ## Installation
 
-`dorito` is an extension of `amigo` and depends heavily on its runtime and modelling APIs. For development and many integration tests you should install `amigo` from source and make it available to your Python environment before installing `dorito`.
+`dorito` is an extension of `amigo` and depends heavily on its runtime and modelling APIs, so you will first need to install `amigo` from source.
 
 Basic walk-through to install `amigo` and `dorito` from source (recommended):
 
