@@ -25,6 +25,9 @@ plugins:
           options:
             docstring_style: "numpy"
             members_order: source
+            setup_commands:
+              - "import sys, os; root=os.environ.get('GITHUB_WORKSPACE', '.'); sys.path.insert(0, os.path.join(root, 'src'))"
+              - "import sys, os; root=os.environ.get('GITHUB_WORKSPACE', '.'); sys.path.insert(0, os.path.join(root, '.'))"
 
 markdown_extensions:
   - admonition
