@@ -90,21 +90,6 @@ class ResolvedFit(_BaseResolvedFit, ModelFit):
         ``True``.
     """
 
-    def __init__(self, file, use_cov=True):
-        """Initialise a resolved-source ModelFit.
-
-        Parameters
-        ----------
-        file : str or path-like
-            Path to the data file or exposure to be passed to the parent
-            :class:`amigo.model_fits.ModelFit` initialiser.
-        use_cov : bool, optional
-            Whether to use the covariance information from the data, by
-            default ``True``.
-        """
-
-        return super().__init__(file, use_cov=use_cov)
-
     def get_key(self, param):
         match param:
             case "log_dist":
@@ -161,23 +146,6 @@ class DynamicResolvedFit(ResolvedFit):
                 return "_".join([self.key, self.filter])
 
         return super().get_key(param)
-
-    def __init__(self, file, use_cov=True):
-        """Initialise a dynamic resolved fit.
-
-        This class behaves like :class:`ResolvedFit` but keys distribution
-        parameters per-exposure. The constructor accepts the same arguments
-        as :class:`ResolvedFit` and delegates to the parent initialiser.
-
-        Parameters
-        ----------
-        file : str or path-like
-            Path to the data file or exposure.
-        use_cov : bool, optional
-            Whether to use covariance information, by default ``True``.
-        """
-
-        return super().__init__(file, use_cov=use_cov)
 
 
 class TransformedResolvedFit(ResolvedFit):
