@@ -19,3 +19,33 @@ We are working hard to create more documentation and example notebooks to share 
 ```text
 max.charles@sydney.edu.au
 ```
+
+## Installation
+
+`dorito` is an extension of `amigo` and depends heavily on its runtime and modelling APIs. For development and many integration tests you should install `amigo` from source and make it available to your Python environment before installing `dorito`.
+
+Basic walk-through to install `amigo` and `dorito` from source (recommended):
+
+1. Create and activate a clean environment (example uses `conda` but `venv` works too):
+
+```bash
+conda create -n your_env
+conda activate your_env
+```
+
+2. Clone and install `amigo` from source:
+
+```bash
+git clone https://github.com/LouisDesdoigts/amigo.git
+cd amigo
+pip install .
+cd ..
+```
+
+3. Clone and install `dorito` (from this repository) into the same environment:
+
+```bash
+git clone https://github.com/maxecharles/dorito.git
+cd dorito
+pip install .
+```
