@@ -8,9 +8,13 @@ rotation by parallactic angle, and simulation of resolved source interferograms.
 from amigo.model_fits import ModelFit
 from amigo.vis_models import vis_to_im
 from amigo.vis_analysis import AmigoOIData
-from amigo.misc import interp
-from jax import numpy as np
+from amigo.misc import interp, find_position
+from jax import numpy as np, lax
+import dLux as dl
 import dLux.utils as dlu
+import equinox as eqx
+from .models import ResolvedAmigoModel
+
 
 __all__ = [
     # "BaseResolvedFit",
@@ -480,3 +484,219 @@ class ResolvedOIFit(_OIFit, _BaseResolvedFit):
         distribution = model.get_distribution(self, rotate=rotate)
 
         return self.model_disco(model, distribution=distribution)
+
+
+class MultiSourceFit(ModelFit):
+
+    exposures: dict
+    calibrator: bool = None  # this will mean multi fit
+    unique_params: list = None
+
+    def __init__(self, file, exp_dict, unique_params=None):
+
+        super().__init__(file)
+
+        for source_id, exp in exp_dict.items():
+            if not isinstance(exp, ModelFit):
+                raise ValueError(
+                    f"All exposures must be ModelFit instances, got {type(exp)} for source_id {source_id}."
+                )
+
+        # Assert all exposures have the same filter
+        filenames = [exp.filename for exp in exp_dict.values()]
+        assert len(set(filenames)) == 1
+
+        self.exposures = exp_dict
+        self.calibrator = None  # this will mean multi fit
+        if unique_params is None:
+            unique_params = [
+                "positions",
+                "fluxes",
+                "spectra",
+                "log_dist",
+                "contrast",
+            ]
+        self.unique_params = unique_params
+
+    def initialise_params(
+        self, optics, source_id=None, vis_model=None, one_on_fs_order=1, normalise_flux=True
+    ):
+        params = {}
+
+        im = np.where(self.badpix, np.nan, self.slopes[0])
+        psf = np.where(np.isnan(im), 0.0, im)
+
+        # Position
+        pos = find_position(psf, optics.psf_pixel_scale)
+        pos += np.array([-optics.psf_pixel_scale / 4, 0])  # apply small shift, seems to help
+
+        # Log flux (1.6 is the ~ gain)
+        if normalise_flux:
+            log_flux = np.log10((80**2) * 1.61 * np.nanmean(im) / self.n_subexps)
+        else:
+            log_flux = np.log10((80**2) * 1.61 * np.nanmean(im))
+
+        # Initialise flat WF
+        abb = np.zeros_like(optics.pupil_mask.abb_coeffs)
+
+        # positions
+        params["positions"] = (self.get_key("positions", source_id), pos)
+        params["fluxes"] = (self.get_key("fluxes", source_id), log_flux)
+        params["aberrations"] = (self.get_key("aberrations", source_id), abb)
+        params["spectra"] = (self.get_key("spectra", source_id), np.array(0.0))
+        params["defocus"] = (self.get_key("defocus", source_id), np.array(0.01))
+
+        # Reflectivity
+        if self.fit_reflectivity:
+            params["reflectivity"] = (
+                self.get_key("reflectivity", source_id),
+                np.zeros_like(optics.pupil_mask.amp_coeffs),
+            )
+
+        # One on fs
+        if self.fit_one_on_fs:
+            params["one_on_fs"] = (
+                self.get_key("one_on_fs", source_id),
+                np.zeros((self.ngroups, 80, one_on_fs_order + 1)),
+            )
+
+        # Biases
+        if self.fit_bias:
+            params["biases"] = (self.get_key("biases", source_id), np.zeros((80, 80)))
+
+        return params
+
+    @property
+    def n_subexps(self):
+        return len(self.exposures)
+
+    def get_key(self, param, source_id=None):
+
+        if source_id is None:
+            print("Warning: source_id is None in get_key, taking the first exposure.")
+            source_id = list(self.exposures.keys())[0]
+
+        exp = self.exposures[source_id]
+
+        if param in self.unique_params:
+            return "_".join([exp.get_key(param), source_id])
+
+        return exp.get_key(param)
+
+    def map_param(self, param, source_id=None):
+
+        if source_id is None:
+            print("Warning: source_id is None in map_param, taking the first exposure.")
+            source_id = list(self.exposures.keys())[0]
+
+        # Map the appropriate parameter to the correct key
+        if param in self.unique_params:
+            return f"{param}.{self.get_key(param, source_id)}"
+
+        # Else its global
+        return self.exposures[source_id].map_param(param)
+
+    def get_spectra(self, model, source_id):
+        wavels, filt_weights = model.filters[self.filter]
+        xs = np.linspace(-1, 1, len(wavels), endpoint=True)
+        spectra_slopes = 1 + model.get(self.map_param("spectra", source_id)) * xs
+        weights = filt_weights * spectra_slopes
+        weights = np.where(weights < 0, 0.0, weights)
+        return wavels, weights / weights.sum()
+
+    def model_wfs(self, model, source_id):
+        pos = dlu.arcsec2rad(model.positions[self.get_key("positions", source_id)])
+        wavels, weights = self.get_spectra(model, source_id)
+
+        optics = self.update_optics(model, source_id)
+        wfs = eqx.filter_jit(optics.propagate)(wavels, pos, weights, return_wf=True)
+
+        # Convert Cartesian to Angular wf
+        if wfs.units == "Cartesian":
+            wfs = wfs.multiply("pixel_scale", 1 / optics.focal_length)
+            wfs = wfs.set(["plane", "units"], ["Focal", "Angular"])
+        return wfs
+
+    def model_psf(self, model, source_id):
+        wfs = self.model_wfs(model, source_id)
+        return dl.PSF(wfs.psf.sum(0), wfs.pixel_scale.mean(0))
+
+    def model_illuminance(self, psf, model, source_id):
+        flux = self.ngroups * 10 ** model.fluxes[self.get_key("fluxes", source_id)]
+        psf = eqx.filter_jit(model.detector.apply)(psf)
+        return psf.multiply("data", flux)
+
+    def update_optics(self, model, source_id):
+        optics = model.optics
+        if "aberrations" in model.params.keys():
+            coefficients = model.aberrations[self.get_key("aberrations", source_id)]
+
+            # Nuke the piston gradient to prevent degeneracy
+            fixed_piston = lax.stop_gradient(coefficients[0, 0])
+            coefficients = coefficients.at[0, 0].set(fixed_piston)
+
+            # Stop gradient for science targets
+            if not self.calibrator:
+                coefficients = lax.stop_gradient(coefficients)
+            optics = optics.set("pupil_mask.abb_coeffs", coefficients)
+
+        if hasattr(model, "reflectivity"):
+            coefficients = model.reflectivity[self.get_key("reflectivity", source_id)]
+            optics = optics.set("pupil_mask.amp_coeffs", coefficients)
+
+        # Set the defocus
+        optics = optics.set("defocus", model.defocus[self.get_key("defocus", source_id)])
+
+        return optics
+
+    def simulate(self, model, return_slopes: bool = True, **kwargs):
+
+        # model/propagate the PSF of each source separately!
+        illuminances = []
+        for source_id, exp in self.exposures.items():
+            psf = self.model_psf(model, source_id)
+            if isinstance(exp, _BaseResolvedFit):
+                image = exp.model_interferogram(psf, model, source_id=source_id, **kwargs)
+            else:
+                image = psf
+            if isinstance(model, ResolvedAmigoModel):
+                image = image.downsample(model.source_oversample)
+            illuminance = self.model_illuminance(image, model, source_id)
+            illuminances.append(illuminance.data)
+
+        illuminance = dl.PSF(np.array(illuminances).sum(axis=0), image.pixel_scale)
+
+        # Just grab any old exposure to get the detector methods
+        exp = list(self.exposures.values())[0]
+        ramp = exp.model_ramp(illuminance, model)
+        ramp = exp.model_read(ramp, model)
+
+        if return_slopes:
+            return ramp.set("data", np.diff(ramp.data, axis=0))
+        return ramp
+
+    # def rotate(self, distribution, clip=True, interp_method="linear"):
+    #     pass
+
+    def print_summary(self):
+        for source_id, exp in self.exposures.items():
+            print(f"Source ID: {source_id}")
+            exp.print_summary()
+            print()
+
+    def rotate(self, distribution, clip=True, interp_method="linear", source_id=None):
+        if source_id is None:
+            print("Warning: source_id is None in rotate, taking the first exposure.")
+            source_id = list(self.exposures.keys())[0]
+
+        exposure = self.exposures[source_id]
+
+        return exposure.rotate(distribution, clip, interp_method)
+
+    # def __getattr__(self, name):
+    #     # called only if attribute not found normally
+    #     print(f"Delegating {name} to inner B")
+    #     return getattr(list(self.exposures.values())[0], name)
+
+    def __call__(self, model, return_slopes=True):
+        return self.simulate(model, return_slopes=return_slopes).data
