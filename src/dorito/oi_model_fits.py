@@ -14,6 +14,12 @@ from jax import numpy as np
 import dLux.utils as dlu
 from .model_fits import _BaseResolvedFit
 
+__all__ = [
+    "ResolvedOIFit",
+    "TransformedResolvedOIFit",
+    "PointResolvedOIFit"
+]
+
 class _OIFit(AmigoOIData):
     """
     Repurposing the AmigoOIData class to act as an Exposure/ModelFit amigo class.
@@ -269,3 +275,51 @@ class ResolvedOIFit(_OIFit, _BaseResolvedFit):
         distribution = model.get_distribution(self, rotate=rotate)
 
         return self.model_disco(model, distribution=distribution)
+
+class TransformedResolvedOIFit(ResolvedOIFit):
+    """ Docs
+    """
+    def initialise_params(self, model, coeffs, basis):
+        """Docs
+        """
+        distribution = basis.from_basis(coeffs)
+        params = ResolvedOIFit.initialise_params(self, model, distribution)
+
+        params["log_dist"] = (self.get_key("log_dist"), coeffs)
+
+        return params
+
+class PointResolvedOIFit(TransformedResolvedOIFit):
+    """ Docs
+    """
+    def get_key(self, param):
+        """ Docs
+        """
+        match param:
+            case "contrast":
+                return self.filter
+        return super().get_key(param)
+
+    def map_param(self, param):
+        """Docs
+        """
+        if param in ["contrast"]:
+            return f"{param}.{self.get_key(param)}"
+        return super().map_param(param)
+
+    def initialise_params(self, model, coeffs, basis):
+        """Docs
+        """
+        params = super().initialise_params(model, coeffs, basis)
+        params["contrast"] = (self.get_key("contrast"), np.array(contrast))
+        return params
+
+    def to_cvis(self, model, distribution):
+        """ Docs
+        """
+        contrast = model.params["contrast"][self.get_key("contrast")]
+
+        resolved_cvis = super().to_cvis(model, distribution)
+        point_cvis = np.ones_like(resolved_cvis)
+
+        return (1 - contrast) * point_cvis + contrast * resolved_cvis
