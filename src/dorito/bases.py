@@ -9,7 +9,7 @@ import numpy as onp
 __all__ = [
     "inscribed_circ_basis",
     "inscribed_annulus_basis",
-    "ImageBasis",
+    "LinearBasis",
 ]
 
 
@@ -84,7 +84,7 @@ def inscribed_annulus_basis(size: int, iterations=2, return_window=True) -> Arra
     return ImageBasis(np.array(M))
 
 
-class ImageBasis(Base):
+class LinearBasis(Base):
     """Linear image basis wrapper.
 
     Parameters
