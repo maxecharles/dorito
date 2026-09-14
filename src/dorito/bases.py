@@ -10,6 +10,7 @@ __all__ = [
     "inscribed_circ_basis",
     "inscribed_annulus_basis",
     "LinearBasis",
+    "LatentBasis"
 ]
 
 
@@ -145,3 +146,28 @@ class LinearBasis(Base):
             2D image reconstructed from the provided coefficients.
         """
         return np.dot(self.M, coeffs).reshape((self.size, self.size))
+
+
+class LatentBasis(Base):
+    """Docs
+    """
+    encoder: eqx.Module # Might consider renaming to something that fits the change from AutoencoderBasis to LatentBasis
+    decoder: eqx.Module # Might consider renaming to something that fits the change from AutoencoderBasis to LatentBasis
+
+    def __init__(self, autoencoder: eqx.Module): # Might consider renaming to something that fits the change from AutoencoderBasis to LatentBasis
+        self.encoder = autoencoder.modules[0]
+        self.decoder = autoencoder.modules[-1] # adjusted from modules[1] to modules[-1] to account for anything like VAE inner module
+
+    def to_basis(self, img: Array) -> Array:
+        """Docs
+        """
+        return self.encoder(img)
+
+    def from_basis(self, coeffs: Array) -> Array:
+        """Docs
+        """
+        return self.decoder(coeffs)
+    
+    
+
+    
