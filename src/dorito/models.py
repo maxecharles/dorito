@@ -408,6 +408,11 @@ class TransformedResolvedDiscoModel(ResolvedDiscoModel):
             distribution = exposure.rotate(distribution)
 
         return distribution
+    
+    def get_coeffs(self, exposure):
+        """Docs
+        """
+        return self.params["log_dist"][exposure.get_key("log_dist")]
 
 
 class JointResolvedDiscoModel(TransformedResolvedDiscoModel):
@@ -454,3 +459,8 @@ class JointResolvedDiscoModel(TransformedResolvedDiscoModel):
             distribution = np.clip(distribution, 1e-30, None)
 
         return distribution
+
+    def get_coeffs(self, exposure):
+            """Docs
+            """
+            return self.params["log_dist"]["joint"]
