@@ -411,7 +411,46 @@ class TransformedResolvedDiscoModel(ResolvedDiscoModel):
 
 
 class JointResolvedDiscoModel(TransformedResolvedDiscoModel):
-    
+    """Docs
+    """
+    filters: tuple = eqx.field(static=True)
 
+    def __init__(self, *args, filters=("F380M", "F430M", "F480M"), **kwargs):
+        self.filters = tuple(filters)
+        super().__init__(*args, **kwargs)
 
+        log_dist = self.params["log_dist"]
+        joint = next(iter(log_dist.values()))
+        new_params = {**self.params, "log_dist": {"joint": joint}}
+        object.__setattr__(self, "params", new_params)
 
+    def get_distribution(
+        self,
+        exposure,
+        rotate: bool = None,
+        exponentiate: bool = False,
+        window: bool = False,
+        clip: bool = True,
+    ):
+        """Docs
+        """
+        idx = self.filters.index(exposure.filter)
+        coeffs = self.params["log_dist"]["joint"]
+
+        distribution = self.basis.from_basis(coeffs)[idx]  # cube is (n_filters, H, W)
+
+        if exponentiate:
+            distribution = 10 ** distribution
+        distribution = distribution / distribution.sum()
+
+        if self.window is not None and window:
+            distribution *= self.window
+
+        if rotate is None:
+            rotate = self.rotate
+        if rotate:
+            distribution = exposure.rotate(distribution)
+        if clip:
+            distribution = np.clip(distribution, 1e-30, None)
+
+        return distribution
