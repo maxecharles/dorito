@@ -410,7 +410,8 @@ class TransformedResolvedDiscoModel(ResolvedDiscoModel):
         return distribution
 
 
-
+class JointResolvedDiscoModel(TransformedResolvedDiscoModel):
+    
 
 
 
