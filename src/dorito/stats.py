@@ -28,6 +28,8 @@ __all__ = [
     # "TSV_loss",
     # "ME_loss",
     "latent_gaussian_prior",
+    "oi_log_likelihood_forecast",
+    "disco_regularised_loss_forecast_fn",
 ]
 
 
