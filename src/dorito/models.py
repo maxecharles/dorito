@@ -343,5 +343,74 @@ class TransformedResolvedDiscoModel(ResolvedDiscoModel):
 
     basis: LinearBasis | LatentBasis
     window: Array
-    
+
+    def __init__(
+        self,
+        ois: list,
+        basis: LinearBasis | LatentBasis,
+        uv_npixels: int,
+        uv_pscale: float,
+        oversample: float = 1.0,
+        psf_pixel_scale: float = 0.065524085, 
+        rotate: bool = False,
+        window: Array = None,
+        param_initers: dict = None,
+    ):
+        # This seems to fix some recompile issues
+        def fn(x):
+            if isinstance(x, Array):
+                if "i" in x.dtype.str:
+                    return x
+                return np.array(x, dtype=float)
+            return x
+
+        self.basis = jtu.map(lambda x: fn(x), basis)
+        self.window = window
+
+        param_initers = dict(param_initers or {})
+        if "distribution" in param_initers:
+            param_initers["coeffs"] = self.basis.to_basis(
+                param_initers.pop("distribution")
+            )
+
+        super().__init__(
+            ois,
+            uv_npixels,
+            uv_pscale,
+            oversample,
+            psf_pixel_scale,
+            rotate,
+            param_initers,
+        )
+
+    def get_distribution(
+        self,
+        exposure,
+        rotate: bool = None,
+        exponentiate: bool = False,
+        window: bool = False,
+    ):
+        """Docs
+        """
+
+        coeffs = self.params["log_dist"][exposure.get_key("log_dist")]
+
+        distribution = self.basis.from_basis(coeffs)
+        if exponentiate:
+            distribution = 10 ** distribution
+
+        if self.window is not None and window:
+            distribution *= self.window
+
+        if rotate is None:
+            rotate = self.rotate
+        if rotate:
+            distribution = exposure.rotate(distribution)
+
+        return distribution
+
+
+
+
+
 
