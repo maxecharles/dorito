@@ -175,9 +175,9 @@ class LatentBasis(Base):
     encoder: eqx.Module
     decoder: eqx.Module
 
-    def __init__(self, model: eqx.Module):
-        self.encoder = model.modules[0]
-        self.decoder = model.modules[-1]
+    def __init__(self, eqx_model: eqx.Module):
+        self.encoder = eqx_model.modules[0]
+        self.decoder = eqx_model.modules[-1]
 
     def to_basis(self, img: Array) -> Array:
         """Encode an image into latent basis coefficients.
