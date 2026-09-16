@@ -7,7 +7,7 @@ fitting and interferometric data (DISCO).
 from jax import Array, numpy as np, tree as jtu
 from amigo.core_models import BaseModeller, AmigoModel
 import dLux.utils as dlu
-from .bases import LatentBasis
+from .bases import LinearBasis, LatentBasis
 
 __all__ = [
     "ResolvedAmigoModel",
@@ -168,14 +168,14 @@ class ResolvedAmigoModel(_AmigoModel, _BaseResolvedModel):
 class TransformedResolvedModel(ResolvedAmigoModel):
     """Resolved model that stores and operates in a compact image basis.
 
-    This class wraps a provided ``ImageBasis`` object and stores the
-    source distribution as basis coefficients. When initialising, if a
-    ``distribution`` is provided in ``param_initers`` it is converted to
+    This class wraps a provided ``LinearBasis`` or ``LatentBasis`` object and 
+    stores the source distribution as basis coefficients. When initialising, 
+    if a ``distribution`` is provided in ``param_initers`` it is converted to
     basis coefficients and stored under the ``coeffs`` initialiser key.
 
     Parameters
     ----------
-    basis : ImageBasis
+    basis : LinearBasis or LatentBasis
         Basis object providing ``to_basis`` / ``from_basis`` conversions.
     window : Array, optional
         Optional multiplicative window applied to reconstructed images.
@@ -186,7 +186,7 @@ class TransformedResolvedModel(ResolvedAmigoModel):
         be converted to ``coeffs`` via the supplied ``basis``.
     """
 
-    basis: None
+    basis: LinearBasis | LatentBasis
     window: Array
 
     def __init__(
@@ -196,11 +196,11 @@ class TransformedResolvedModel(ResolvedAmigoModel):
         detector,
         ramp_model,
         read,
-        basis: LatentBasis,
+        basis: LinearBasis | LatentBasis,
         state,
         source_oversample=1,
         window: Array = None,
-        param_initers: dict = {},
+        param_initers: dict = None,
         rotate: bool = True,
     ):
 
@@ -337,4 +337,11 @@ class ResolvedDiscoModel(_BaseResolvedModel):
         return dlu.arcsec2rad(self.psf_pixel_scale / self.oversample)
 
 
+class TransformedResolvedDiscoModel(ResolvedDiscoModel):
+    """Docs
+    """
+
+    basis: LinearBasis | LatentBasis
+    window: Array
+    
 
