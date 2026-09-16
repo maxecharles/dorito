@@ -7,7 +7,7 @@ fitting and interferometric data (DISCO).
 from jax import Array, numpy as np, tree as jtu
 from amigo.core_models import BaseModeller, AmigoModel
 import dLux.utils as dlu
-from .bases import ImageBasis
+from .bases import LatentBasis
 
 __all__ = [
     "ResolvedAmigoModel",
@@ -196,7 +196,7 @@ class TransformedResolvedModel(ResolvedAmigoModel):
         detector,
         ramp_model,
         read,
-        basis: ImageBasis,
+        basis: LatentBasis,
         state,
         source_oversample=1,
         window: Array = None,
@@ -335,3 +335,6 @@ class ResolvedDiscoModel(_BaseResolvedModel):
         The pixel scale of the image plane, in radians per pixel.
         """
         return dlu.arcsec2rad(self.psf_pixel_scale / self.oversample)
+
+
+
