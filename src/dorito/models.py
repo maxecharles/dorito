@@ -460,7 +460,7 @@ class JointResolvedDiscoModel(TransformedResolvedDiscoModel):
 
         return distribution
 
-    def get_coeffs(self, exposure):
+    def get_coeffs(self, exposure=None):
             """Docs
             """
             return self.params["log_dist"]["joint"]
