@@ -149,22 +149,64 @@ class LinearBasis(Base):
 
 
 class LatentBasis(Base):
-    """Docs
-    """
-    encoder: eqx.Module # Might consider renaming to something that fits the change from AutoencoderBasis to LatentBasis
-    decoder: eqx.Module # Might consider renaming to something that fits the change from AutoencoderBasis to LatentBasis
+    """Learned latent-space image basis wrapper.
 
-    def __init__(self, model: eqx.Module): # Might consider renaming to something that fits the change from AutoencoderBasis to LatentBasis
+    Parameters
+    ----------
+    model
+        Equinox module that exposes a `modules` sequence. The first entry is
+        used as the encoder (image -> latent coefficients) and the last entry
+        is used as the decoder (latent coefficients -> image).
+
+    Notes
+    -----
+    This is the machine-learned counterpart to `LinearBasis`. Instead of a
+    fixed matrix and its pseudo-inverse, the mapping between pixel and basis
+    representations is given by the model's trained encoder and decoder, so
+    `from_basis` and `to_basis` are generally not exact inverses of each
+    other.
+
+    Any Equinox model can be used as long as its first and last entries in
+    `modules` act as the encoder and decoder, and the encoder's output can be
+    passed directly to the decoder. Taking the decoder from `modules[-1]`
+    allows models with intermediate modules between the two; those
+    intermediate modules are not applied by `to_basis` or `from_basis`.
+    """
+    encoder: eqx.Module
+    decoder: eqx.Module
+
+    def __init__(self, model: eqx.Module):
         self.encoder = model.modules[0]
-        self.decoder = model.modules[-1] # adjusted from modules[1] to modules[-1] to account for anything like VAE inner module
+        self.decoder = model.modules[-1]
 
     def to_basis(self, img: Array) -> Array:
-        """Docs
+        """Encode an image into latent basis coefficients.
+
+        Parameters
+        ----------
+        img : Array
+            Image array in the shape expected by the encoder, typically
+            (size, size).
+
+        Returns
+        -------
+        Array
+            Latent coefficients produced by the encoder.
         """
         return self.encoder(img)
 
     def from_basis(self, coeffs: Array) -> Array:
-        """Docs
+        """Decode latent basis coefficients into an image.
+
+        Parameters
+        ----------
+        coeffs : Array
+            Latent coefficients in the shape expected by the decoder.
+
+        Returns
+        -------
+        Array
+            Image reconstructed by the decoder.
         """
         return self.decoder(coeffs)
     
