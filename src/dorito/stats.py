@@ -27,6 +27,7 @@ __all__ = [
     # "TV_loss",
     # "TSV_loss",
     # "ME_loss",
+    "latent_gaussian_prior",
 ]
 
 
