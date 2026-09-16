@@ -28,13 +28,13 @@ def inscribed_circ_basis(size: int, return_window=True) -> Array:
         constructs a ``size x size`` window and selects pixels inside the
         inscribed top-hat.
     return_window : bool, optional
-        If True (default) return a tuple ``(ImageBasis, window_arr)`` where
+        If True (default) return a tuple ``(LinearBasis, window_arr)`` where
         ``window_arr`` is the boolean mask of selected pixels. Otherwise
-        return only the ``ImageBasis`` instance.
+        return only the ``LinearBasis`` instance.
 
     Returns
     -------
-    ImageBasis or (ImageBasis, ndarray)
+    LinearBasis or (LinearBasis, ndarray)
         The basis mapping (and optionally the boolean window mask).
     """
 
@@ -42,8 +42,8 @@ def inscribed_circ_basis(size: int, return_window=True) -> Array:
     mask = onp.where(window_arr.flatten())[0]
     M = onp.eye(size**2)[:, mask]
     if return_window:
-        return ImageBasis(np.array(M), ortho=True), window_arr
-    return ImageBasis(np.array(M))
+        return LinearBasis(np.array(M), ortho=True), window_arr
+    return LinearBasis(np.array(M))
 
 
 def inscribed_annulus_basis(size: int, iterations=2, return_window=True) -> Array:
@@ -63,12 +63,12 @@ def inscribed_annulus_basis(size: int, iterations=2, return_window=True) -> Arra
         Number of binary dilation iterations used to build the inner hole
         (default: 2).
     return_window : bool, optional
-        If True (default) return a tuple ``(ImageBasis, window_arr)`` where
+        If True (default) return a tuple ``(LinearBasis, window_arr)`` where
         ``window_arr`` is the boolean mask of selected annulus pixels.
 
     Returns
     -------
-    ImageBasis or (ImageBasis, ndarray)
+    LinearBasis or (LinearBasis, ndarray)
         The basis mapping (and optionally the boolean window mask).
     """
 
@@ -81,8 +81,8 @@ def inscribed_annulus_basis(size: int, iterations=2, return_window=True) -> Arra
     mask = onp.where(window_arr.flatten())[0]
     M = onp.eye(size**2)[:, mask]
     if return_window:
-        return ImageBasis(np.array(M), ortho=True), window_arr
-    return ImageBasis(np.array(M))
+        return LinearBasis(np.array(M), ortho=True), window_arr
+    return LinearBasis(np.array(M))
 
 
 class LinearBasis(Base):
@@ -154,9 +154,9 @@ class LatentBasis(Base):
     encoder: eqx.Module # Might consider renaming to something that fits the change from AutoencoderBasis to LatentBasis
     decoder: eqx.Module # Might consider renaming to something that fits the change from AutoencoderBasis to LatentBasis
 
-    def __init__(self, autoencoder: eqx.Module): # Might consider renaming to something that fits the change from AutoencoderBasis to LatentBasis
-        self.encoder = autoencoder.modules[0]
-        self.decoder = autoencoder.modules[-1] # adjusted from modules[1] to modules[-1] to account for anything like VAE inner module
+    def __init__(self, model: eqx.Module): # Might consider renaming to something that fits the change from AutoencoderBasis to LatentBasis
+        self.encoder = model.modules[0]
+        self.decoder = model.modules[-1] # adjusted from modules[1] to modules[-1] to account for anything like VAE inner module
 
     def to_basis(self, img: Array) -> Array:
         """Docs
