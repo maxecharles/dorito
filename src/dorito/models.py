@@ -11,8 +11,10 @@ from .bases import LinearBasis, LatentBasis
 
 __all__ = [
     "ResolvedAmigoModel",
-    "ResolvedDiscoModel",
     "TransformedResolvedModel",
+    "ResolvedDiscoModel",
+    "TransformedResolvedDiscoModel",
+    "JointResolvedDiscoModel"
 ]
 
 
