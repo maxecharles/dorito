@@ -172,6 +172,22 @@ def disco_regularised_loss_fn(model, exposure, args={"reg_dict": {}}):
 
     return likelihood + prior, ()
 
+def disco_regularised_loss_forecast_fn(model, exposure, forecast, args={"reg_dict": {}}):
+    """Compute a regularised loss for interferometric (DISCO) data.
+    Added Forecasting for BFGS and Bayesian Stuff, may be able to combine versions
+
+    The returned value mirrors other loss wrappers and returns a scalar plus
+    an empty tuple for compatibility with calling code.
+    """
+
+    # regular likelihood term
+    likelihood = oi_log_likelihood_forecast(model, exposure, forecast)
+
+    # grabbing and exponentiating log distributions
+    prior = apply_regularisers(model, exposure, args)
+
+    return likelihood + prior, ()
+
 
 def oi_log_likelihood(model, oi):
     """Compute a Gaussian negative log-likelihood for OI data.
@@ -184,6 +200,26 @@ def oi_log_likelihood(model, oi):
         Object exposing ``vis``, ``phi``, ``d_vis`` and ``d_phi`` arrays.
     """
     data = np.concatenate([oi.vis, oi.phi])
+    err = np.concatenate([oi.d_vis, oi.d_phi])
+    model_vis = oi(model)
+
+    residual = data - model_vis
+    nll = np.sum(0.5 * (residual / err) ** 2 + np.log(err * np.sqrt(2 * np.pi)))
+
+    return nll
+
+def oi_log_likelihood_forecast(model, oi, forecast):
+    """Compute a Gaussian negative log-likelihood for OI data.
+    Added Forecasting for BFGS and Bayesian Stuff, may be able to combine versions
+    
+    Parameters
+    ----------
+    model : object
+        Model object callable as ``oi(model)`` to return model predictions.
+    oi : object
+        Object exposing ``vis``, ``phi``, ``d_vis`` and ``d_phi`` arrays.
+    """
+    data = forecast
     err = np.concatenate([oi.d_vis, oi.d_phi])
     model_vis = oi(model)
 
