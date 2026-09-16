@@ -237,7 +237,7 @@ class TransformedResolvedModel(ResolvedAmigoModel):
         self,
         exposure,
         rotate: bool = None,
-        exponentiate=True,
+        exponentiate=False,
         window=True,
     ):
 
