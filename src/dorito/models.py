@@ -304,25 +304,26 @@ class ResolvedDiscoModel(_BaseResolvedModel):
     def __init__(
         self,
         ois: list,
-        distribution: Array,
         uv_npixels: int,
         uv_pscale: float,
         oversample: float = 1.0,
         psf_pixel_scale: float = 0.065524085,  # arcsec/pixel
         rotate: bool = True,
+        param_initers: dict = None,
     ):
-
         self.uv_npixels = uv_npixels
         self.oversample = oversample
         self.uv_pscale = uv_pscale
         self.psf_pixel_scale = psf_pixel_scale
         self.rotate = rotate
 
+        param_initers = {} if param_initers is None else param_initers
+
         params = {}
         for oi in ois:
-            param_dict = oi.initialise_params(self, distribution)
+            param_dict = oi.initialise_params(self, **param_initers)
             for param, (key, value) in param_dict.items():
-                if param not in params.keys():
+                if param not in params:
                     params[param] = {}
                 params[param][key] = value
 
