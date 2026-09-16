@@ -190,3 +190,9 @@ def oi_log_likelihood(model, oi):
     nll = np.sum(0.5 * (residual / err) ** 2 + np.log(err * np.sqrt(2 * np.pi)))
 
     return nll
+
+def latent_gaussian_prior(model, exposure=None):
+    """Docs
+    """
+    z = model.get_coeffs(exposure)
+    return 0.5 * np.sum(z ** 2)
