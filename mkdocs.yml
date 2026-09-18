@@ -86,8 +86,9 @@ theme:
 
 nav:
   - Home: README.md
-  - Examples:
+  - Dorito Examples:
       - Image Plane Fitting: docs/examples/image_plane_fitting.md
+  - FRITO Examples:
   - API:
       - model_fits: docs/api/model_fits.md
       - models: docs/api/models.md

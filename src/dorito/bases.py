@@ -9,7 +9,8 @@ import numpy as onp
 __all__ = [
     "inscribed_circ_basis",
     "inscribed_annulus_basis",
-    "ImageBasis",
+    "LinearBasis",
+    "LatentBasis"
 ]
 
 
@@ -27,13 +28,13 @@ def inscribed_circ_basis(size: int, return_window=True) -> Array:
         constructs a ``size x size`` window and selects pixels inside the
         inscribed top-hat.
     return_window : bool, optional
-        If True (default) return a tuple ``(ImageBasis, window_arr)`` where
+        If True (default) return a tuple ``(LinearBasis, window_arr)`` where
         ``window_arr`` is the boolean mask of selected pixels. Otherwise
-        return only the ``ImageBasis`` instance.
+        return only the ``LinearBasis`` instance.
 
     Returns
     -------
-    ImageBasis or (ImageBasis, ndarray)
+    LinearBasis or (LinearBasis, ndarray)
         The basis mapping (and optionally the boolean window mask).
     """
 
@@ -41,8 +42,8 @@ def inscribed_circ_basis(size: int, return_window=True) -> Array:
     mask = onp.where(window_arr.flatten())[0]
     M = onp.eye(size**2)[:, mask]
     if return_window:
-        return ImageBasis(np.array(M), ortho=True), window_arr
-    return ImageBasis(np.array(M))
+        return LinearBasis(np.array(M), ortho=True), window_arr
+    return LinearBasis(np.array(M))
 
 
 def inscribed_annulus_basis(size: int, iterations=2, return_window=True) -> Array:
@@ -62,12 +63,12 @@ def inscribed_annulus_basis(size: int, iterations=2, return_window=True) -> Arra
         Number of binary dilation iterations used to build the inner hole
         (default: 2).
     return_window : bool, optional
-        If True (default) return a tuple ``(ImageBasis, window_arr)`` where
+        If True (default) return a tuple ``(LinearBasis, window_arr)`` where
         ``window_arr`` is the boolean mask of selected annulus pixels.
 
     Returns
     -------
-    ImageBasis or (ImageBasis, ndarray)
+    LinearBasis or (LinearBasis, ndarray)
         The basis mapping (and optionally the boolean window mask).
     """
 
@@ -80,11 +81,11 @@ def inscribed_annulus_basis(size: int, iterations=2, return_window=True) -> Arra
     mask = onp.where(window_arr.flatten())[0]
     M = onp.eye(size**2)[:, mask]
     if return_window:
-        return ImageBasis(np.array(M), ortho=True), window_arr
-    return ImageBasis(np.array(M))
+        return LinearBasis(np.array(M), ortho=True), window_arr
+    return LinearBasis(np.array(M))
 
 
-class ImageBasis(Base):
+class LinearBasis(Base):
     """Linear image basis wrapper.
 
     Parameters
@@ -145,3 +146,70 @@ class ImageBasis(Base):
             2D image reconstructed from the provided coefficients.
         """
         return np.dot(self.M, coeffs).reshape((self.size, self.size))
+
+
+class LatentBasis(Base):
+    """Learned latent-space image basis wrapper.
+
+    Parameters
+    ----------
+    model
+        Equinox module that exposes a `modules` sequence. The first entry is
+        used as the encoder (image -> latent coefficients) and the last entry
+        is used as the decoder (latent coefficients -> image).
+
+    Notes
+    -----
+    This is the machine-learned counterpart to `LinearBasis`. Instead of a
+    fixed matrix and its pseudo-inverse, the mapping between pixel and basis
+    representations is given by the model's trained encoder and decoder, so
+    `from_basis` and `to_basis` are generally not exact inverses of each
+    other.
+
+    Any Equinox model can be used as long as its first and last entries in
+    `modules` act as the encoder and decoder, and the encoder's output can be
+    passed directly to the decoder. Taking the decoder from `modules[-1]`
+    allows models with intermediate modules between the two; those
+    intermediate modules are not applied by `to_basis` or `from_basis`.
+    """
+    encoder: eqx.Module
+    decoder: eqx.Module
+
+    def __init__(self, eqx_model: eqx.Module):
+        self.encoder = eqx_model.modules[0]
+        self.decoder = eqx_model.modules[-1]
+
+    def to_basis(self, img: Array) -> Array:
+        """Encode an image into latent basis coefficients.
+
+        Parameters
+        ----------
+        img : Array
+            Image array in the shape expected by the encoder, typically
+            (size, size).
+
+        Returns
+        -------
+        Array
+            Latent coefficients produced by the encoder.
+        """
+        return self.encoder(img)
+
+    def from_basis(self, coeffs: Array) -> Array:
+        """Decode latent basis coefficients into an image.
+
+        Parameters
+        ----------
+        coeffs : Array
+            Latent coefficients in the shape expected by the decoder.
+
+        Returns
+        -------
+        Array
+            Image reconstructed by the decoder.
+        """
+        return self.decoder(coeffs)
+    
+    
+
+    

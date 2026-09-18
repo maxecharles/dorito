@@ -7,12 +7,14 @@ fitting and interferometric data (DISCO).
 from jax import Array, numpy as np, tree as jtu
 from amigo.core_models import BaseModeller, AmigoModel
 import dLux.utils as dlu
-from .bases import ImageBasis
+from .bases import LinearBasis, LatentBasis
 
 __all__ = [
     "ResolvedAmigoModel",
-    "ResolvedDiscoModel",
     "TransformedResolvedModel",
+    "ResolvedDiscoModel",
+    "TransformedResolvedDiscoModel",
+    "JointResolvedDiscoModel"
 ]
 
 
@@ -168,14 +170,14 @@ class ResolvedAmigoModel(_AmigoModel, _BaseResolvedModel):
 class TransformedResolvedModel(ResolvedAmigoModel):
     """Resolved model that stores and operates in a compact image basis.
 
-    This class wraps a provided ``ImageBasis`` object and stores the
-    source distribution as basis coefficients. When initialising, if a
-    ``distribution`` is provided in ``param_initers`` it is converted to
+    This class wraps a provided ``LinearBasis`` or ``LatentBasis`` object and 
+    stores the source distribution as basis coefficients. When initialising, 
+    if a ``distribution`` is provided in ``param_initers`` it is converted to
     basis coefficients and stored under the ``coeffs`` initialiser key.
 
     Parameters
     ----------
-    basis : ImageBasis
+    basis : LinearBasis or LatentBasis
         Basis object providing ``to_basis`` / ``from_basis`` conversions.
     window : Array, optional
         Optional multiplicative window applied to reconstructed images.
@@ -186,7 +188,7 @@ class TransformedResolvedModel(ResolvedAmigoModel):
         be converted to ``coeffs`` via the supplied ``basis``.
     """
 
-    basis: None
+    basis: LinearBasis | LatentBasis
     window: Array
 
     def __init__(
@@ -196,11 +198,11 @@ class TransformedResolvedModel(ResolvedAmigoModel):
         detector,
         ramp_model,
         read,
-        basis: ImageBasis,
+        basis: LinearBasis | LatentBasis,
         state,
         source_oversample=1,
         window: Array = None,
-        param_initers: dict = {},
+        param_initers: dict = None,
         rotate: bool = True,
     ):
 
@@ -237,7 +239,7 @@ class TransformedResolvedModel(ResolvedAmigoModel):
         self,
         exposure,
         rotate: bool = None,
-        exponentiate=True,
+        exponentiate=False,
         window=True,
     ):
 
@@ -304,25 +306,26 @@ class ResolvedDiscoModel(_BaseResolvedModel):
     def __init__(
         self,
         ois: list,
-        distribution: Array,
         uv_npixels: int,
         uv_pscale: float,
         oversample: float = 1.0,
         psf_pixel_scale: float = 0.065524085,  # arcsec/pixel
         rotate: bool = True,
+        param_initers: dict = None,
     ):
-
         self.uv_npixels = uv_npixels
         self.oversample = oversample
         self.uv_pscale = uv_pscale
         self.psf_pixel_scale = psf_pixel_scale
         self.rotate = rotate
 
+        param_initers = {} if param_initers is None else param_initers
+
         params = {}
         for oi in ois:
-            param_dict = oi.initialise_params(self, distribution)
+            param_dict = oi.initialise_params(self, **param_initers)
             for param, (key, value) in param_dict.items():
-                if param not in params.keys():
+                if param not in params:
                     params[param] = {}
                 params[param][key] = value
 
@@ -334,3 +337,132 @@ class ResolvedDiscoModel(_BaseResolvedModel):
         The pixel scale of the image plane, in radians per pixel.
         """
         return dlu.arcsec2rad(self.psf_pixel_scale / self.oversample)
+
+
+class TransformedResolvedDiscoModel(ResolvedDiscoModel):
+    """Docs
+    """
+
+    basis: LinearBasis | LatentBasis
+    window: Array
+
+    def __init__(
+        self,
+        ois: list,
+        basis: LinearBasis | LatentBasis,
+        uv_npixels: int,
+        uv_pscale: float,
+        oversample: float = 1.0,
+        psf_pixel_scale: float = 0.065524085, 
+        rotate: bool = False,
+        window: Array = None,
+        param_initers: dict = None,
+    ):
+        # This seems to fix some recompile issues
+        def fn(x):
+            if isinstance(x, Array):
+                if "i" in x.dtype.str:
+                    return x
+                return np.array(x, dtype=float)
+            return x
+
+        self.basis = jtu.map(lambda x: fn(x), basis)
+        self.window = window
+
+        param_initers = dict(param_initers or {})
+        if "distribution" in param_initers:
+            param_initers["coeffs"] = self.basis.to_basis(
+                param_initers.pop("distribution")
+            )
+
+        super().__init__(
+            ois,
+            uv_npixels,
+            uv_pscale,
+            oversample,
+            psf_pixel_scale,
+            rotate,
+            param_initers,
+        )
+
+    def get_distribution(
+        self,
+        exposure,
+        rotate: bool = None,
+        exponentiate: bool = False,
+        window: bool = False,
+    ):
+        """Docs
+        """
+
+        coeffs = self.params["log_dist"][exposure.get_key("log_dist")]
+
+        distribution = self.basis.from_basis(coeffs)
+        if exponentiate:
+            distribution = 10 ** distribution
+
+        if self.window is not None and window:
+            distribution *= self.window
+
+        if rotate is None:
+            rotate = self.rotate
+        if rotate:
+            distribution = exposure.rotate(distribution)
+
+        return distribution
+    
+    def get_coeffs(self, exposure):
+        """Docs
+        """
+        return self.params["log_dist"][exposure.get_key("log_dist")]
+
+
+class JointResolvedDiscoModel(TransformedResolvedDiscoModel):
+    """Docs
+    """
+    filters: tuple = eqx.field(static=True)
+
+    def __init__(self, *args, filters=("F380M", "F430M", "F480M"), **kwargs):
+        self.filters = tuple(filters)
+        super().__init__(*args, **kwargs)
+
+        log_dist = self.params["log_dist"]
+        joint = next(iter(log_dist.values()))
+        new_params = {**self.params, "log_dist": {"joint": joint}}
+        object.__setattr__(self, "params", new_params)
+
+    def get_distribution(
+        self,
+        exposure,
+        rotate: bool = None,
+        exponentiate: bool = False,
+        window: bool = False,
+        clip: bool = True,
+    ):
+        """Docs
+        """
+        idx = self.filters.index(exposure.filter)
+        coeffs = self.params["log_dist"]["joint"]
+
+        distribution = self.basis.from_basis(coeffs)[idx]  # cube is (n_filters, H, W)
+
+        if exponentiate:
+            distribution = 10 ** distribution
+        distribution = distribution / distribution.sum()
+
+        if self.window is not None and window:
+            distribution *= self.window
+
+        if rotate is None:
+            rotate = self.rotate
+        if rotate:
+            distribution = exposure.rotate(distribution)
+        if clip:
+            distribution = np.clip(distribution, 1e-30, None)
+
+        return distribution
+
+    def get_coeffs(self, exposure=None):
+            """Docs
+            """
+            return self.params["log_dist"]["joint"]
