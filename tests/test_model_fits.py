@@ -36,15 +36,13 @@ from dorito.model_fits import (
 def _stub(cls, **attrs):
     """Build an instance without running __init__.
 
-    The key-routing methods only read `self.filter` / `self.key`, so we can
-    exercise them without constructing a real ModelFit (which needs a file on
-    disk and a populated optics model). Uses object.__setattr__ so this keeps
-    working if the base class is a frozen equinox Module.
+    The key-routing methods only read `self.filter` / `self.key`, both of
+    which are read-only properties on ModelFit. We make a throwaway subclass
+    whose class-level attributes shadow those properties, then allocate it
+    without __init__ (which would want a real file and optics model).
     """
-    obj = object.__new__(cls)
-    for key, value in attrs.items():
-        object.__setattr__(obj, key, value)
-    return obj
+    stub_cls = type(f"_Stub{cls.__name__}", (cls,), dict(attrs))
+    return object.__new__(stub_cls)
 
 
 # ------------------------------------------------------------ module surface
