@@ -127,14 +127,18 @@ def test_90_degree_rotation_is_a_lattice_rotation(compact_image):
 
 
 def test_symmetric_image_is_rotation_invariant():
-    coords = np.arange(15) - 7.0
+    # Bilinear interpolation error scales as h^2 * f'' / 8, so the test image
+    # has to be broad to keep it small: a sigma-2 Gaussian costs ~0.03 at the
+    # peak, which swamps any real error. A wide raised-cosine bump is smooth
+    # enough (~1e-3) and compactly supported, so the boundary zero-fill can't
+    # contribute either.
+    coords = np.arange(55) - 27.0
     x, y = np.meshgrid(coords, coords)
-    img = np.exp(-(x**2 + y**2) / 8.0)  # sigma = 2 px, ~1e-3 at the border
+    r = np.hypot(x, y)
+    img = np.where(r < 24.0, 0.5 * (1 + np.cos(np.pi * r / 24.0)), 0.0)
 
     out = _RotStub(37.0).rotate(img)
-    # Loose: an off-lattice angle costs bilinear interpolation error at the
-    # peak, where the image varies fastest.
-    assert np.allclose(out, img, atol=5e-3)
+    assert np.allclose(out, img, atol=5e-3)  # peak is 1.0, so 0.5% of peak
 
 
 def test_rotation_drops_boundary_pixels():
